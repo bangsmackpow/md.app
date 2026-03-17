@@ -1,10 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'export', // Forces Next.js to generate static HTML/CSS/JS
+  output: 'export',
   images: {
-    unoptimized: true, // Required because the mobile app can't optimize images on the fly
-  }
+    unoptimized: true,
+  },
+  // We've removed the experimental block entirely
 };
 
 export default nextConfig;

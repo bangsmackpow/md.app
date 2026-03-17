@@ -1,27 +1,22 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* 1. Prevent mobile selection/highlighting on UI elements */
 @layer base {
   html, body {
-    @apply h-full overflow-hidden antialiased select-none;
-    /* This prevents that blue 'tap highlight' on buttons in Android */
+    @apply h-full overflow-hidden antialiased select-none bg-zinc-50 dark:bg-zinc-950;
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* 2. Re-enable selection for the actual editor and preview */
   textarea, .prose {
     @apply select-text;
   }
 
-  /* 3. Smooth scrolling for the Markdown preview */
   .prose {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
   }
 }
 
-/* 4. Fix for the Android 'Safe Area' variables if they aren't auto-populated */
 :root {
   --sat: env(safe-area-inset-top);
   --sar: env(safe-area-inset-right);
