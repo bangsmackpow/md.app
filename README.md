@@ -1,174 +1,90 @@
-# Next.js Starter Template
+# md.app
 
-A minimal, production-ready Next.js 16 starter template optimized for AI-assisted development.
+A premium, local-first Markdown note-taking application built for mobile, web, and desktop. Designed by Built Networks for speed, data ownership, and a professional editing experience.
 
-## Original Prompt
+## ✨ Premium Features
 
-> Create a minimal Next.js starter template designed for AI-assisted development. It should provide a clean foundation that can be extended to build any type of web application through interaction with an AI assistant.
->
-> **Requirements:**
-> - Modern Next.js 16 setup with App Router
-> - TypeScript for type safety
-> - Tailwind CSS 4 for styling
-> - ESLint for code quality
-> - Clean, minimal starting structure
-> - Bun as package manager
->
-> **Nice to Have:**
-> - Recipe system for common additions (database, auth)
-> - Memory bank for AI context persistence
-> - Clear development guidelines
+### 🚀 Performance & Storage
+- **Local-First Architecture**: Your notes are stored on your device first. Lightning-fast access with zero latency.
+- **Cross-Platform Sync**: Built-in support for S3-compatible storage (Cloudflare R2, AWS S3, MinIO) to keep your devices in sync.
+- **Android Persistence**: Configured to use external storage on Android, ensuring your `.md` files survive even if the app is uninstalled.
+- **Unified API**: Seamlessly switches between Capacitor Filesystem (Mobile) and LocalStorage (Web).
 
-## Architecture & Approach
+### ✍️ Professional Editor
+- **CodeMirror 6 Engine**: A high-performance, modular editor replacing standard textareas.
+- **Searchable Slash Menu**: Type `/` to open a command palette with 13+ formatting options (Checklists, Headings, Code Blocks, etc.).
+- **Interactive Checklists**: Toggle task items (`- [ ]`) directly in the **Preview Mode** with a single click—automatically updates the source file and syncs to cloud.
+- **Metadata Indexing**: Background engine that automatically extracts titles, `#tags`, and snippets for a rich, searchable list view.
 
-### Design Philosophy
+### 🛠️ Effortless Configuration
+- **Credential Import**: Skip manual typing. Import your S3/R2 credentials instantly via a simple JSON file.
+- **Auto-Update Engine**: Automatically polls the GitHub Releases API. Receive a notification banner the moment a new version is ready.
 
-This template follows a **minimal-by-default** philosophy:
-- Start with just enough to build
-- Add features only when needed
-- Trust the AI to extend based on requirements
+---
 
-### Tech Stack
+## ☁️ Cloud Sync Setup (S3/R2)
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Next.js | 16.x | React framework with App Router |
-| React | 19.x | UI library |
-| TypeScript | 5.9.x | Type-safe JavaScript |
-| Tailwind CSS | 4.x | Utility-first CSS |
-| Bun | Latest | Package manager & runtime |
+`md.app` is designed to work with any S3-compatible provider. We recommend **Cloudflare R2** for its speed and zero-egress fees.
 
-### Project Structure
+### Configuration Format
+Create a file named `s3-config.json` with the following structure to import your credentials in the Settings menu:
 
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── layout.tsx          # Root layout + metadata
-│   ├── page.tsx            # Home page
-│   ├── globals.css         # Tailwind imports + global styles
-│   └── favicon.ico         # Site icon
-└── (expand as needed)
-    ├── components/         # React components (add when needed)
-    ├── lib/                # Utilities and helpers
-    └── db/                 # Database files (add via recipe)
-```
-
-### Key Architectural Patterns
-
-1. **App Router**: Uses Next.js file-based routing (`src/app/`)
-
-2. **Server Components by Default**: All components are Server Components unless marked with `"use client"`
-
-3. **Component Organization** (when expanding):
-   ```
-   src/components/
-   ├── ui/           # Reusable UI components
-   ├── layout/       # Layout components (Header, Footer)
-   ├── sections/     # Page sections (Hero, Features)
-   └── forms/        # Form components
-   ```
-
-4. **Styling**: Tailwind CSS 4 with utility classes directly on elements
-
-### Memory Bank System
-
-The template includes a memory bank system (`.kilocode/rules/memory-bank/`) that provides persistent context for AI assistants:
-
-- `brief.md` - Project goals and requirements
-- `product.md` - User flows and UX goals
-- `architecture.md` - Code patterns and conventions
-- `tech.md` - Tech stack and dependencies
-- `context.md` - Current state and recent changes
-
-### Recipe System
-
-Recipes provide step-by-step guides for adding common features:
-
-| Recipe | File | Use Case |
-|--------|------|----------|
-| Add Database | `.kilocode/recipes/add-database.md` | Data persistence with Drizzle + SQLite |
-
-## Getting Started
-
-### Prerequisites
-
-- Bun installed: `curl -fsSL https://bun.sh/install | bash`
-
-### Installation
-
-```bash
-bun install
-```
-
-### Development
-
-```bash
-bun dev          # Start dev server (http://localhost:3000)
-bun build        # Production build
-bun start        # Start production server
-bun lint         # Run ESLint
-bun typecheck    # Run TypeScript type checking
-```
-
-## Extending the Template
-
-### Adding a New Page
-
-Create a file at `src/app/[route]/page.tsx`:
-
-```tsx
-export default function NewPage() {
-  return <div>New page content</div>;
-}
-```
-
-### Adding Components
-
-Create `src/components/` directory and add components:
-
-```tsx
-// src/components/ui/Button.tsx
-export function Button({ children }: { children: React.ReactNode }) {
-  return <button className="px-4 py-2 bg-blue-600 text-white rounded">{children}</button>;
-}
-```
-
-### Adding API Routes
-
-Create `src/app/api/[route]/route.ts`:
-
-```tsx
-import { NextResponse } from "next/server";
-
-export async function GET() {
-  return NextResponse.json({ message: "Hello" });
-}
-```
-
-### Adding a Database
-
-Follow `.kilocode/recipes/add-database.md` to add Drizzle + SQLite.
-
-## Deployment
-
-The template produces server-rendered pages by default. Deploy to any platform that supports Next.js (Vercel, Netlify, Docker, etc.).
-
-## Cloud Sync (S3/R2)
-
-`md.app` supports syncing with any S3-compatible storage (Cloudflare R2, AWS S3, MinIO, etc.).
-
-### Importing Credentials
-You can import your credentials using a `.json` file in the Settings menu.
-
-**File Format (`s3-config.json`):**
 ```json
 {
-  "endpoint": "https://<your-id>.r2.cloudflarestorage.com",
-  "accessKey": "your-access-key",
+  "endpoint": "https://<your-account-id>.r2.cloudflarestorage.com",
+  "accessKey": "your-access-key-id",
   "secretKey": "your-secret-key",
   "bucket": "your-bucket-name"
 }
 ```
 
-## Updates
-The app automatically checks for new releases on GitHub. If a new version is detected, an "Update Available" banner will appear in the main list.
+---
+
+## 🔄 Update Process
+
+1. **Detection**: The app checks the GitHub repository for tags newer than the current version.
+2. **Notification**: A blue "Update Available" banner appears at the top of your notes list and a dot appears on the Settings icon.
+3. **Installation**: Clicking the banner opens the GitHub Release page where you can download the latest `.apk` or view the web deployment.
+
+---
+
+## 💻 Technical Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Framework** | Next.js 16 (App Router) |
+| **Language** | TypeScript 5.9 |
+| **Styling** | Tailwind CSS 4 |
+| **Mobile** | Capacitor 8 |
+| **Editor** | CodeMirror 6 |
+| **Markdown** | React Markdown + remark-gfm |
+| **Cloud** | AWS SDK (S3 Client) |
+
+---
+
+## 🛠️ Development
+
+### Prerequisites
+- [Bun](https://bun.sh) (Package Manager)
+- Android Studio (for Mobile builds)
+
+### Commands
+```bash
+bun install          # Install dependencies
+bun dev              # Local web development
+bun run build        # Production build
+bun lint             # Code quality check
+```
+
+### Deployment (Android)
+```bash
+bun run build        # Build Next.js
+npx cap copy         # Copy web assets to Android
+npx cap open android # Open in Android Studio
+```
+
+---
+
+## 📜 License
+Copyright © 2026 Built Networks. All rights reserved.
+MIT License (see source).
