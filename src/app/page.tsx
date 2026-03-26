@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Edit3, Eye, Save, Plus, ChevronLeft, 
