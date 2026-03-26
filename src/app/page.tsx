@@ -185,15 +185,16 @@ export default function MdApp() {
     setView("editor");
   };
 
-  const saveNote = async () => {
+  const saveNote = useCallback(async (overrideContent?: string) => {
     if (!fileName) return;
-    await storage.writeNote(fileName, content);
+    const contentToSave = overrideContent !== undefined ? overrideContent : content;
+    await storage.writeNote(fileName, contentToSave);
     
     // Update Index
-    const h1Line = content.split('\n').find(l => l.startsWith('# '));
+    const h1Line = contentToSave.split('\n').find(l => l.startsWith('# '));
     const title = h1Line ? h1Line.replace('# ', '').trim() : fileName;
-    const tags = Array.from(content.matchAll(/#(\w+)/g)).map(m => m[1]);
-    const snippet = content.replace(/^# .*\n?/, '').substring(0, 100).trim();
+    const tags = Array.from(contentToSave.matchAll(/#(\w+)/g)).map(m => m[1]);
+    const snippet = contentToSave.replace(/^# .*\n?/, '').substring(0, 100).trim();
 
     await indexer.updateNote({
       id: fileName,
@@ -204,8 +205,28 @@ export default function MdApp() {
     });
 
     loadNotes();
-    syncToCloud(fileName, content);
-  };
+    syncToCloud(fileName, contentToSave);
+  }, [fileName, content, storage, indexer, loadNotes, syncToCloud]);
+
+  const toggleCheckbox = useCallback((lineIndex: number) => {
+    const lines = content.split('\n');
+    const targetLine = lines[lineIndex - 1];
+    if (!targetLine) return;
+
+    let newLine = targetLine;
+    if (targetLine.includes('[ ]')) {
+      newLine = targetLine.replace('[ ]', '[x]');
+    } else if (targetLine.includes('[x]')) {
+      newLine = targetLine.replace('[x]', '[ ]');
+    }
+
+    if (newLine !== targetLine) {
+      lines[lineIndex - 1] = newLine;
+      const newContent = lines.join('\n');
+      setContent(newContent);
+      saveNote(newContent);
+    }
+  }, [content, saveNote]);
 
   const deleteNote = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
