@@ -218,7 +218,7 @@ export default function MdApp() {
     await CapShare.share({ title: fileName || "Note", text: content });
   };
 
-  const insertMarkdown = (snippet: string) => {
+  const insertMarkdown = useCallback((snippet: string) => {
     if (editorRef.current) {
       const view = editorRef.current;
       const { state } = view;
@@ -245,7 +245,7 @@ export default function MdApp() {
     setShowSlashMenu(false);
     setSlashSearch("");
     setSelectedSlashIndex(0);
-  };
+  }, []);
 
   const handleEditorChange = useCallback((value: string, viewUpdate: any) => {
     setContent(value);
