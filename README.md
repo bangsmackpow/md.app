@@ -153,6 +153,22 @@ Follow `.kilocode/recipes/add-database.md` to add Drizzle + SQLite.
 
 The template produces server-rendered pages by default. Deploy to any platform that supports Next.js (Vercel, Netlify, Docker, etc.).
 
-## License
+## Cloud Sync (S3/R2)
 
-MIT
+`md.app` supports syncing with any S3-compatible storage (Cloudflare R2, AWS S3, MinIO, etc.).
+
+### Importing Credentials
+You can import your credentials using a `.json` file in the Settings menu.
+
+**File Format (`s3-config.json`):**
+```json
+{
+  "endpoint": "https://<your-id>.r2.cloudflarestorage.com",
+  "accessKey": "your-access-key",
+  "secretKey": "your-secret-key",
+  "bucket": "your-bucket-name"
+}
+```
+
+## Updates
+The app automatically checks for new releases on GitHub. If a new version is detected, an "Update Available" banner will appear in the main list.

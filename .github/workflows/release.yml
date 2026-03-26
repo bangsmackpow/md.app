@@ -7,6 +7,8 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
@@ -53,9 +55,11 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ github.token }}
           files: ${{ steps.sign_app.outputs.signedReleaseFile }}
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
           body: "Official signed release for md.app"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
