@@ -445,7 +445,7 @@ export default function MdApp() {
                 {syncStatus === "success" && <Cloud className="text-green-500" size={18} />}
                 {syncStatus === "error" && <CloudOff className="text-red-500" size={18} />}
                 <button onClick={handleShare} className="p-2 text-zinc-400"><Share size={20} /></button>
-                <button onClick={saveNote} className="p-2 text-blue-600"><Save size={20} /></button>
+                <button onClick={() => saveNote()} className="p-2 text-blue-600"><Save size={20} /></button>
                 <button onClick={() => setEditMode(editMode === "edit" ? "preview" : "edit")} className="p-2 text-zinc-400">{editMode === "edit" ? <Eye size={20} /> : <Edit3 size={20} />}</button>
               </div>
             </header>
