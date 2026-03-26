@@ -445,7 +445,31 @@ export default function MdApp() {
                   className="h-full text-base"
                 />
               ) : (
-                <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none"><ReactMarkdown>{content}</ReactMarkdown></div>
+                <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none">
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      input: ({node, ...props}) => {
+                        if (props.type === 'checkbox') {
+                          return (
+                            <input 
+                              {...props} 
+                              className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                              readOnly={false}
+                              onChange={() => {
+                                const line = (node as any)?.position?.start.line;
+                                if (line) toggleCheckbox(line);
+                              }}
+                            />
+                          );
+                        }
+                        return <input {...props} />;
+                      }
+                    }}
+                  >
+                    {content}
+                  </ReactMarkdown>
+                </div>
               )}
             </div>
             <AnimatePresence>
