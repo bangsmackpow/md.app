@@ -149,9 +149,33 @@ export default function MdApp() {
   }, [storage, indexer]);
 
   const checkForUpdates = useCallback(async () => {
+    console.log("Manually checking for updates...");
     const release = await checkUpdates(versionData.version);
-    if (release) setUpdateInfo(release);
+    if (release) {
+      setUpdateInfo(release);
+      alert(`Update found: ${release.tag_name}`);
+    } else {
+      alert("No updates found or already up to date.");
+    }
   }, []);
+
+  const manualSyncAll = useCallback(async () => {
+    setSyncStatus("syncing");
+    const notesToSync = await indexer.getNotes();
+    try {
+      for (const note of notesToSync) {
+        const content = await storage.readNote(note.id);
+        await sync.upload(note.id, content, r2Config);
+      }
+      setSyncStatus("success");
+      alert(`Synced ${notesToSync.length} notes successfully.`);
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } catch (err) {
+      console.error("Manual Sync Error:", err);
+      setSyncStatus("error");
+      alert("Sync failed. Check S3 credentials and CORS policy.");
+    }
+  }, [indexer, storage, sync, r2Config]);
 
   useEffect(() => {
     loadNotes();
@@ -404,10 +428,15 @@ export default function MdApp() {
             <section className="space-y-4">
               <div className="flex items-center justify-between px-2">
                 <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Cloud Sync (S3)</h2>
-                <label className="text-[10px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg cursor-pointer active:scale-95 transition-transform">
-                  Import JSON
-                  <input type="file" accept=".json" onChange={handleImportConfig} className="hidden" />
-                </label>
+                <div className="flex gap-2">
+                  <button onClick={manualSyncAll} className="text-[10px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg active:scale-95 transition-transform">
+                    Sync All
+                  </button>
+                  <label className="text-[10px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg cursor-pointer active:scale-95 transition-transform">
+                    Import JSON
+                    <input type="file" accept=".json" onChange={handleImportConfig} className="hidden" />
+                  </label>
+                </div>
               </div>
               <div className="space-y-3">
                 <input value={r2Config.endpoint} onChange={(e) => setR2Config({...r2Config, endpoint: e.target.value})} placeholder="S3 Endpoint URL" className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm" />
@@ -420,16 +449,21 @@ export default function MdApp() {
 
             <section className="pt-6 border-t border-zinc-200 dark:border-zinc-800">
               <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-4 px-2">About</h2>
-              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-bold tracking-tight">Version {versionData.version}</div>
-                  <div className="text-[10px] text-zinc-500">Built on {versionData.buildDate}</div>
+              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold tracking-tight">Version {versionData.version}</div>
+                    <div className="text-[10px] text-zinc-500">Built on {versionData.buildDate}</div>
+                  </div>
+                  {updateInfo ? (
+                     <button onClick={() => Browser.open({ url: updateInfo.html_url })} className="text-[10px] font-bold text-blue-500 underline">Update Available</button>
+                  ) : (
+                     <div className="text-[10px] font-bold text-green-500 flex items-center gap-1"><Cloud size={10} /> Up to date</div>
+                  )}
                 </div>
-                {updateInfo ? (
-                   <button onClick={() => Browser.open({ url: updateInfo.html_url })} className="text-[10px] font-bold text-blue-500">Update Available</button>
-                ) : (
-                   <div className="text-[10px] font-bold text-green-500 flex items-center gap-1"><Cloud size={10} /> Up to date</div>
-                )}
+                <button onClick={checkForUpdates} className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-bold rounded-xl active:scale-[0.98] transition-transform">
+                  Check for Updates
+                </button>
               </div>
             </section>
           </motion.div>
