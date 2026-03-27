@@ -132,7 +132,8 @@ export default function MdApp() {
     
     setSyncStatus("syncing");
     try {
-      const res = await fetch('https://md-app-backend.curtislamasters.workers.dev/api/auth/register', {
+      // Point to local Pages API instead of external worker
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail.trim() })
@@ -148,7 +149,7 @@ export default function MdApp() {
         alert(data.error || "Authentication failed.");
       }
     } catch (e) {
-      alert("Backend unreachable. Ensure your Worker is deployed.");
+      alert("API unreachable. Ensure your Pages Functions are deployed.");
     } finally {
       setSyncStatus("idle");
     }
@@ -483,7 +484,49 @@ export default function MdApp() {
   return (
     <main onKeyDown={handleKeyDown} className="h-screen w-screen overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 pt-[env(safe-area-inset-top)]">
       <AnimatePresence mode="wait">
-        {/* ... (list and settings views remain the same) */}
+        {view === "auth" && (
+          <motion.div 
+            key="auth" 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: -20 }} 
+            className="flex-1 flex flex-col justify-center p-8 space-y-12"
+          >
+            <div className="text-center space-y-2">
+              <h1 className="text-5xl font-black tracking-tighter italic">md.app</h1>
+              <p className="text-zinc-500 text-sm font-bold uppercase tracking-[0.3em]">Built Networks</p>
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-2">Register with Email</label>
+                <input 
+                  type="email"
+                  value={userEmail}
+                  onChange={(e) => setUserEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl text-base shadow-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                />
+              </div>
+              
+              <button 
+                onClick={handleRegister}
+                disabled={syncStatus === "syncing"}
+                className="w-full py-5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black rounded-3xl shadow-xl active:scale-[0.98] transition-transform flex items-center justify-center gap-3 disabled:opacity-50"
+              >
+                {syncStatus === "syncing" ? "Connecting..." : "Get Started"}
+                <ChevronLeft size={20} className="rotate-180" />
+              </button>
+            </div>
+
+            <div className="text-center">
+              <p className="text-[10px] text-zinc-400 font-medium leading-relaxed max-w-[200px] mx-auto">
+                By continuing, you agree to our terms of service and data ownership policy.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {view === "list" && (
           <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
             <header className="p-6 pb-2 flex justify-between items-start">
