@@ -7,13 +7,13 @@
     {
       "binding": "DB",
       "database_name": "md-app-db",
-      "database_id": "REPLACE_WITH_D1_ID"
+      "database_id": "d7dbd601-9a88-4f8f-be56-6af13eed5fda"
     }
   ],
   "r2_buckets": [
     {
       "binding": "NOTES_BUCKET",
-      "bucket_name": "md-app-notes"
+      "bucket_name": "md-app-r2"
     }
   ],
   "observability": {

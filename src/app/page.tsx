@@ -32,8 +32,7 @@ import versionData from "../../public/version.json";
 
 // Polyfills
 import { Buffer } from "buffer";
-
-type ViewState = "list" | "editor" | "settings";
+type ViewState = "list" | "editor" | "settings" | "auth";
 
 interface SlashCommand {
   id: string;
@@ -44,6 +43,8 @@ interface SlashCommand {
 }
 
 const SLASH_COMMANDS: SlashCommand[] = [
+// ... (rest of commands)
+
   { id: 'task', label: 'Checklist', icon: <CheckSquare size={18} className="text-blue-500" />, snippet: '- [ ] ', description: 'Add a task item' },
   { id: 'h1', label: 'Heading 1', icon: <Heading size={18} className="text-purple-500" />, snippet: '# ', description: 'Large section heading' },
   { id: 'h2', label: 'Heading 2', icon: <Heading size={18} className="text-purple-400" />, snippet: '## ', description: 'Medium section heading' },
