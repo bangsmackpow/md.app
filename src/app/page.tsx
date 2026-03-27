@@ -436,64 +436,100 @@ export default function MdApp() {
         )}
 
         {view === "editor" && (
-          <motion.div key="editor" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }} className="flex-1 flex flex-col">
-            <header className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-              <button onClick={() => { setView("list"); setShowSlashMenu(false); }} className="p-2"><ChevronLeft size={24} /></button>
-              <input value={fileName} onChange={(e) => setFileName(e.target.value)} className="flex-1 mx-2 bg-transparent font-bold text-center text-sm outline-none" />
-              <div className="flex gap-2 items-center">
-                {syncStatus === "syncing" && <Cloud className="animate-pulse text-blue-500" size={18} />}
-                {syncStatus === "success" && <Cloud className="text-green-500" size={18} />}
-                {syncStatus === "error" && <CloudOff className="text-red-500" size={18} />}
-                <button onClick={handleShare} className="p-2 text-zinc-400"><Share size={20} /></button>
-                <button onClick={() => saveNote()} className="p-2 text-blue-600"><Save size={20} /></button>
-                <button onClick={() => setEditMode(editMode === "edit" ? "preview" : "edit")} className="p-2 text-zinc-400">{editMode === "edit" ? <Eye size={20} /> : <Edit3 size={20} />}</button>
+          <motion.div key="editor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col overflow-hidden">
+            <header className="flex items-center justify-between px-2 py-3 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center min-w-0">
+                <button onClick={() => { setView("list"); setShowSlashMenu(false); }} className="p-2 shrink-0"><ChevronLeft size={24} /></button>
+                <input value={fileName} onChange={(e) => setFileName(e.target.value)} className="min-w-0 bg-transparent font-bold text-sm outline-none px-1" />
+              </div>
+              
+              <div className="flex gap-0.5 items-center shrink-0">
+                <div className="px-2 flex items-center justify-center">
+                  {syncStatus === "syncing" && <Cloud className="animate-pulse text-blue-500" size={18} />}
+                  {syncStatus === "success" && <Cloud className="text-green-500" size={18} />}
+                  {syncStatus === "error" && <CloudOff className="text-red-500" size={18} />}
+                </div>
+                <button onClick={handleShare} className="p-2 text-zinc-400 active:scale-90"><Share size={18} /></button>
+                <button onClick={() => saveNote()} className="p-2 text-blue-600 active:scale-90"><Save size={18} /></button>
+                <button 
+                  onClick={() => setEditMode(editMode === "edit" ? "preview" : "edit")} 
+                  className={`p-2 rounded-lg transition-colors ${editMode === "preview" ? "bg-blue-500 text-white" : "text-zinc-400"}`}
+                >
+                  {editMode === "edit" ? <Eye size={18} /> : <Edit3 size={18} />}
+                </button>
               </div>
             </header>
-            <div className="flex-1 relative overflow-hidden">
-              {editMode === "edit" ? (
-                <CodeMirror
-                  value={content}
-                  height="100%"
-                  theme={isDarkMode ? 'dark' : 'light'}
-                  extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]}
-                  onChange={handleEditorChange}
-                  onCreateEditor={(view) => { editorRef.current = view; }}
-                  basicSetup={{
-                    lineNumbers: false,
-                    foldGutter: false,
-                    highlightActiveLine: false,
-                    autocompletion: true,
-                  }}
-                  className="h-full text-base"
-                />
-              ) : (
-                <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none">
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      input: ({node, ...props}) => {
-                        if (props.type === 'checkbox') {
-                          return (
-                            <input 
-                              {...props} 
-                              className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
-                              readOnly={false}
-                              onChange={() => {
-                                const line = (node as any)?.position?.start.line;
-                                if (line) toggleCheckbox(line);
-                              }}
-                            />
-                          );
-                        }
-                        return <input {...props} />;
-                      }
-                    }}
+
+            <motion.div 
+              className="flex-1 relative overflow-hidden touch-none"
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.2}
+              onDragEnd={(e, info) => {
+                if (info.offset.x > 100 && editMode === "preview") setEditMode("edit");
+                if (info.offset.x < -100 && editMode === "edit") setEditMode("preview");
+              }}
+            >
+              <AnimatePresence mode="wait">
+                {editMode === "edit" ? (
+                  <motion.div 
+                    key="edit-view"
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: -20, opacity: 0 }}
+                    className="h-full w-full"
                   >
-                    {content}
-                  </ReactMarkdown>
-                </div>
-              )}
-            </div>
+                    <CodeMirror
+                      value={content}
+                      height="100%"
+                      theme={isDarkMode ? 'dark' : 'light'}
+                      extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]}
+                      onChange={handleEditorChange}
+                      onCreateEditor={(view) => { editorRef.current = view; }}
+                      basicSetup={{
+                        lineNumbers: false,
+                        foldGutter: false,
+                        highlightActiveLine: false,
+                        autocompletion: true,
+                      }}
+                      className="h-full text-base"
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div 
+                    key="preview-view"
+                    initial={{ x: 20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 20, opacity: 0 }}
+                    className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none"
+                  >
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        input: ({node, ...props}) => {
+                          if (props.type === 'checkbox') {
+                            return (
+                              <input 
+                                {...props} 
+                                className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                                readOnly={false}
+                                onChange={() => {
+                                  const line = (node as any)?.position?.start.line;
+                                  if (line) toggleCheckbox(line);
+                                }}
+                              />
+                            );
+                          }
+                          return <input {...props} />;
+                        }
+                      }}
+                    >
+                      {content}
+                    </ReactMarkdown>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
             <AnimatePresence>
               {showSlashMenu && (
                 <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="absolute bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 rounded-t-3xl shadow-2xl z-50 flex flex-col max-h-[60vh]">
