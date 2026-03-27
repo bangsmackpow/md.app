@@ -1,6 +1,6 @@
 {
   "name": "md.app",
-  "version": "1.1.15",
+  "version": "1.1.16",
 
 
   "private": true,
@@ -9,7 +9,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "backend:dev": "cd backend && bun run dev",
+    "backend:deploy": "cd backend && bun run deploy",
+    "backend:init-db": "cd backend && bun run init-db"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1010.0",
