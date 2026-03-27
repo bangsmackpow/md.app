@@ -181,6 +181,9 @@ export default function MdApp() {
     }
     setSyncStatus("syncing");
     
+    // Detect current origin for CORS help
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'unknown';
+    
     try {
       // 1. Upload Local to Remote
       const localNotes = await indexer.getNotes();
@@ -210,7 +213,12 @@ export default function MdApp() {
     } catch (err: any) {
       console.error("Manual Sync Error:", err);
       setSyncStatus("error");
-      alert(`Sync failed: ${err.message}\nCheck CORS and Credentials.`);
+      
+      if (err.message.includes("fetch") || err.name === "TypeError") {
+        alert(`Sync Failed (CORS/Network Error)\n\nYOUR APP ORIGIN: ${currentOrigin}\n\nAction: In Cloudflare R2 Settings, ensure your CORS policy allows "${currentOrigin}"`);
+      } else {
+        alert(`Sync failed: ${err.name} - ${err.message}\nCheck Credentials.`);
+      }
     }
   }, [indexer, storage, sync, r2Config, loadNotes]);
 
