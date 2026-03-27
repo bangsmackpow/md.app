@@ -12,16 +12,24 @@ export interface GitHubRelease {
 
 export async function checkUpdates(currentVersion: string): Promise<GitHubRelease | null> {
   try {
-    const response = await fetch('https://api.github.com/repos/builtnetworks/md.app/releases/latest');
-    if (!response.ok) return null;
+    // Add cache buster to bypass GitHub API caching
+    const url = `https://api.github.com/repos/builtnetworks/md.app/releases/latest?t=${Date.now()}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      if (response.status === 403) console.warn('GitHub API rate limit reached');
+      return null;
+    }
     
     const latest: GitHubRelease = await response.json();
+    if (!latest.tag_name) return null;
+
+    // Clean versions: remove 'v' and any non-numeric parts for comparison
+    const latestClean = latest.tag_name.replace(/^v/, '');
+    const currentClean = currentVersion.replace(/^v/, '');
     
-    // Simple semver comparison (v1.0.7 -> 1.0.7)
-    const latestNum = latest.tag_name.replace('v', '');
-    const currentNum = currentVersion.replace('v', '');
-    
-    if (latestNum !== currentNum && isNewer(latestNum, currentNum)) {
+    console.log(`Update Check: Current=${currentClean}, Latest=${latestClean}`);
+
+    if (latestClean !== currentClean && isNewer(latestClean, currentClean)) {
       return latest;
     }
     
@@ -33,12 +41,17 @@ export async function checkUpdates(currentVersion: string): Promise<GitHubReleas
 }
 
 function isNewer(latest: string, current: string): boolean {
-  const l = latest.split('.').map(Number);
-  const c = current.split('.').map(Number);
+  // Split by '.' and filter out non-numeric parts
+  const l = latest.split('.').map(s => parseInt(s.replace(/\D/g, ''), 10));
+  const c = current.split('.').map(s => parseInt(s.replace(/\D/g, ''), 10));
   
-  for (let i = 0; i < 3; i++) {
-    if ((l[i] || 0) > (c[i] || 0)) return true;
-    if ((l[i] || 0) < (c[i] || 0)) return false;
+  const maxLength = Math.max(l.length, c.length);
+  
+  for (let i = 0; i < maxLength; i++) {
+    const lPart = l[i] || 0;
+    const cPart = c[i] || 0;
+    if (lPart > cPart) return true;
+    if (lPart < cPart) return false;
   }
   return false;
 }
