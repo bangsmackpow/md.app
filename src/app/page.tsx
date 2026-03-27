@@ -113,21 +113,29 @@ export default function MdApp() {
   }, []);
 
   const saveSettings = async () => {
-    // Trim values and ensure protocol
+    // Clean and Trim values
     let endpoint = r2Config.endpoint.trim();
+    
+    // Ensure protocol
     if (endpoint && !endpoint.startsWith('http')) {
       endpoint = `https://${endpoint}`;
+    }
+
+    // Strip bucket name from endpoint if present (AWS SDK appends it)
+    const bucketTrim = r2Config.bucket.trim();
+    if (endpoint.endsWith(`/${bucketTrim}`)) {
+      endpoint = endpoint.substring(0, endpoint.length - bucketTrim.length - 1);
     }
 
     const trimmedConfig = {
       endpoint,
       accessKey: r2Config.accessKey.trim(),
       secretKey: r2Config.secretKey.trim(),
-      bucket: r2Config.bucket.trim()
+      bucket: bucketTrim
     };
     setR2Config(trimmedConfig);
     await Preferences.set({ key: 'r2_config', value: JSON.stringify(trimmedConfig) });
-    alert("Settings Saved Locally");
+    alert("Settings Saved & Cleaned!");
     setView("list");
   };
 
