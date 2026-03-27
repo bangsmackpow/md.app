@@ -102,7 +102,15 @@ export default function MdApp() {
   }, []);
 
   const saveSettings = async () => {
-    await Preferences.set({ key: 'r2_config', value: JSON.stringify(r2Config) });
+    // Trim values to prevent common copy-paste errors
+    const trimmedConfig = {
+      endpoint: r2Config.endpoint.trim(),
+      accessKey: r2Config.accessKey.trim(),
+      secretKey: r2Config.secretKey.trim(),
+      bucket: r2Config.bucket.trim()
+    };
+    setR2Config(trimmedConfig);
+    await Preferences.set({ key: 'r2_config', value: JSON.stringify(trimmedConfig) });
     alert("Settings Saved Locally");
     setView("list");
   };
@@ -116,7 +124,14 @@ export default function MdApp() {
       try {
         const config = JSON.parse(event.target?.result as string);
         if (config.endpoint && config.accessKey && config.secretKey && config.bucket) {
-          setR2Config(config);
+          // Trim imported values
+          const trimmed = {
+            endpoint: config.endpoint.trim(),
+            accessKey: config.accessKey.trim(),
+            secretKey: config.secretKey.trim(),
+            bucket: config.bucket.trim()
+          };
+          setR2Config(trimmed);
           alert("S3 Credentials Imported! Don't forget to Save.");
         } else {
           alert("Invalid config format. Check README.md");
