@@ -164,7 +164,7 @@ export default function MdApp() {
     }
   }, [loadNotes, loadConfig, checkForUpdates]);
 
-  const syncToCloud = async (name: string, body: string) => {
+  const syncToCloud = useCallback(async (name: string, body: string) => {
     if (!r2Config.accessKey || !r2Config.endpoint) return;
     setSyncStatus("syncing");
 
@@ -173,10 +173,10 @@ export default function MdApp() {
       setSyncStatus("success");
       setTimeout(() => setSyncStatus("idle"), 3000);
     } catch (err) {
-      console.error(err);
+      console.error("S3 Sync Error:", err);
       setSyncStatus("error");
     }
-  };
+  }, [r2Config, sync]);
 
   const openNote = async (id: string) => {
     const contents = await storage.readNote(id);
