@@ -168,9 +168,9 @@ export default function MdApp() {
     const release = await checkUpdates(versionData.version);
     if (release) {
       setUpdateInfo(release);
-      alert(`Update found: ${release.tag_name}`);
+      alert(`Update found!\nLocal: ${versionData.version}\nRemote: ${release.tag_name}`);
     } else {
-      alert("No updates found or already up to date.");
+      alert(`No update needed.\nLocal: ${versionData.version}\n(Checked GitHub successfully)`);
     }
   }, []);
 

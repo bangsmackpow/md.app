@@ -24,8 +24,8 @@ export async function checkUpdates(currentVersion: string): Promise<GitHubReleas
     if (!latest.tag_name) return null;
 
     // Clean versions: remove 'v' and any non-numeric parts for comparison
-    const latestClean = latest.tag_name.replace(/^v/, '');
-    const currentClean = currentVersion.replace(/^v/, '');
+    const latestClean = latest.tag_name.trim().replace(/^v/, '');
+    const currentClean = currentVersion.trim().replace(/^v/, '');
     
     console.log(`Update Check: Current=${currentClean}, Latest=${latestClean}`);
 
