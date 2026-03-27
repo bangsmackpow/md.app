@@ -6,6 +6,7 @@ export class S3SyncProvider implements SyncProvider {
     return new S3Client({
       region: "auto",
       endpoint: config.endpoint,
+      forcePathStyle: true, // Required for many S3 compatibles like R2/MinIO
       credentials: {
         accessKeyId: config.accessKey,
         secretAccessKey: config.secretKey,
