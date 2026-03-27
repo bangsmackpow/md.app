@@ -65,6 +65,7 @@ export default function MdApp() {
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState("");
   const [notes, setNotes] = useState<NoteMetadata[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [updateInfo, setUpdateInfo] = useState<GitHubRelease | null>(null);
   
@@ -75,26 +76,21 @@ export default function MdApp() {
     bucket: ""
   });
 
-  const [showSlashMenu, setShowSlashMenu] = useState(false);
-  const [slashSearch, setSlashSearch] = useState("");
-  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+  // ... (useMemos remain same)
 
-  const storage = useMemo(() => getStorageProvider(), []);
-  const indexer = useMemo(() => getIndexProvider(), []);
-  const sync = useMemo(() => getSyncProvider(), []);
-
-  const filteredCommands = useMemo(() => {
-    if (!slashSearch) return SLASH_COMMANDS;
-    return SLASH_COMMANDS.filter(cmd => 
-      cmd.label.toLowerCase().includes(slashSearch.toLowerCase()) ||
-      cmd.id.toLowerCase().includes(slashSearch.toLowerCase())
+  const filteredNotes = useMemo(() => {
+    if (!searchQuery) return notes;
+    const q = searchQuery.toLowerCase();
+    return notes.filter(n => 
+      n.title.toLowerCase().includes(q) || 
+      n.snippet.toLowerCase().includes(q) ||
+      n.tags.some(t => t.toLowerCase().includes(q))
     );
-  }, [slashSearch]);
+  }, [notes, searchQuery]);
 
   const editorRef = React.useRef<any>(null);
 
-  // Use system dark mode
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // ... (isDarkMode effect remains)
 
   const loadConfig = useCallback(async () => {
     const { value } = await Preferences.get({ key: 'r2_config' });
@@ -102,9 +98,14 @@ export default function MdApp() {
   }, []);
 
   const saveSettings = async () => {
-    // Trim values to prevent common copy-paste errors
+    // Trim values and ensure protocol
+    let endpoint = r2Config.endpoint.trim();
+    if (endpoint && !endpoint.startsWith('http')) {
+      endpoint = `https://${endpoint}`;
+    }
+
     const trimmedConfig = {
-      endpoint: r2Config.endpoint.trim(),
+      endpoint,
       accessKey: r2Config.accessKey.trim(),
       secretKey: r2Config.secretKey.trim(),
       bucket: r2Config.bucket.trim()
@@ -420,6 +421,28 @@ export default function MdApp() {
               </button>
             </header>
 
+            <div className="px-6 py-2">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-400">
+                  <Plus size={16} className="rotate-45" /> {/* Use as search icon or similar */}
+                </div>
+                <input 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search notes, tags, or content..."
+                  className="w-full pl-10 pr-4 py-3 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery("")}
+                    className="absolute inset-y-0 right-4 flex items-center text-zinc-400 hover:text-zinc-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {updateInfo && (
                 <button 
@@ -436,10 +459,14 @@ export default function MdApp() {
                   <ChevronLeft size={16} className="rotate-180" />
                 </button>
               )}
-              <button onClick={() => { setFileName(`note-${Date.now()}`); setContent(""); setView("editor"); }} className="w-full p-6 border-2 border-dashed border-zinc-300 dark:border-zinc-800 rounded-3xl flex items-center justify-center gap-2 text-zinc-400 font-bold uppercase text-xs tracking-widest">
-                <Plus size={18} /> New Entry
-              </button>
-              {notes.map(note => (
+              
+              {!searchQuery && (
+                <button onClick={() => { setFileName(`note-${Date.now()}`); setContent(""); setView("editor"); }} className="w-full p-6 border-2 border-dashed border-zinc-300 dark:border-zinc-800 rounded-3xl flex items-center justify-center gap-2 text-zinc-400 font-bold uppercase text-xs tracking-widest">
+                  <Plus size={18} /> New Entry
+                </button>
+              )}
+
+              {filteredNotes.map(note => (
                 <div key={note.id} onClick={() => openNote(note.id)} className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col gap-1 active:scale-[0.98] transition-transform">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-zinc-500"><FileText size={20} /></div>
@@ -456,6 +483,12 @@ export default function MdApp() {
                   )}
                 </div>
               ))}
+
+              {filteredNotes.length === 0 && searchQuery && (
+                <div className="p-12 text-center text-zinc-400 italic text-sm">
+                  No notes found matching "{searchQuery}"
+                </div>
+              )}
               <div className="pt-8 pb-12 text-center">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300 dark:text-zinc-800">Version {versionData.version}</p>
               </div>
