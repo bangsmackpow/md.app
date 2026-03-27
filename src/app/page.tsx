@@ -76,7 +76,21 @@ export default function MdApp() {
     bucket: ""
   });
 
-  // ... (useMemos remain same)
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashSearch, setSlashSearch] = useState("");
+  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+
+  const storage = useMemo(() => getStorageProvider(), []);
+  const indexer = useMemo(() => getIndexProvider(), []);
+  const sync = useMemo(() => getSyncProvider(), []);
+
+  const filteredCommands = useMemo(() => {
+    if (!slashSearch) return SLASH_COMMANDS;
+    return SLASH_COMMANDS.filter(cmd => 
+      cmd.label.toLowerCase().includes(slashSearch.toLowerCase()) ||
+      cmd.id.toLowerCase().includes(slashSearch.toLowerCase())
+    );
+  }, [slashSearch]);
 
   const filteredNotes = useMemo(() => {
     if (!searchQuery) return notes;
@@ -90,7 +104,8 @@ export default function MdApp() {
 
   const editorRef = React.useRef<any>(null);
 
-  // ... (isDarkMode effect remains)
+  // Use system dark mode
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const loadConfig = useCallback(async () => {
     const { value } = await Preferences.get({ key: 'r2_config' });
