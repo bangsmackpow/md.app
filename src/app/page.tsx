@@ -61,7 +61,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
 ];
 
 export default function MdApp() {
-  const [view, setView] = useState<ViewState>("list");
+  const [view, setView] = useState<ViewState>("list"); // Changed in useEffect
   const [editMode, setEditMode] = useState<"edit" | "preview">("edit");
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState("");
@@ -70,6 +70,11 @@ export default function MdApp() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [updateInfo, setUpdateInfo] = useState<GitHubRelease | null>(null);
   
+  // Auth State
+  const [userEmail, setUserEmail] = useState("");
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
   const [r2Config, setR2Config] = useState<SyncConfig>({
     endpoint: "",
     accessKey: "",
@@ -107,6 +112,53 @@ export default function MdApp() {
 
   // Use system dark mode
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const loadAuth = useCallback(async () => {
+    const { value } = await Preferences.get({ key: 'auth_token' });
+    if (value) {
+      setAuthToken(value);
+      setView("list");
+    } else {
+      setView("auth");
+    }
+    setIsAuthLoading(false);
+  }, []);
+
+  const handleRegister = async () => {
+    if (!userEmail || !userEmail.includes("@")) {
+      alert("Please enter a valid email.");
+      return;
+    }
+    
+    setSyncStatus("syncing");
+    try {
+      const res = await fetch('https://md-app-backend.curtislamasters.workers.dev/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail.trim() })
+      });
+      
+      const data = await res.json() as any;
+      if (data.token) {
+        await Preferences.set({ key: 'auth_token', value: data.token });
+        setAuthToken(data.token);
+        alert("Welcome to md.app!");
+        setView("list");
+      } else {
+        alert(data.error || "Authentication failed.");
+      }
+    } catch (e) {
+      alert("Backend unreachable. Ensure your Worker is deployed.");
+    } finally {
+      setSyncStatus("idle");
+    }
+  };
+
+  const handleLogout = async () => {
+    await Preferences.remove({ key: 'auth_token' });
+    setAuthToken(null);
+    setView("auth");
+  };
 
   const loadConfig = useCallback(async () => {
     const { value } = await Preferences.get({ key: 'r2_config' });
