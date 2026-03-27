@@ -160,22 +160,44 @@ export default function MdApp() {
   }, []);
 
   const manualSyncAll = useCallback(async () => {
+    if (!r2Config.accessKey || !r2Config.endpoint) {
+      alert("Please configure S3 credentials first.");
+      return;
+    }
     setSyncStatus("syncing");
-    const notesToSync = await indexer.getNotes();
+    
     try {
-      for (const note of notesToSync) {
+      // 1. Upload Local to Remote
+      const localNotes = await indexer.getNotes();
+      let uploadCount = 0;
+      for (const note of localNotes) {
         const content = await storage.readNote(note.id);
         await sync.upload(note.id, content, r2Config);
+        uploadCount++;
       }
+
+      // 2. Download Remote to Local
+      const remoteKeys = await sync.listRemote(r2Config);
+      let downloadCount = 0;
+      for (const key of remoteKeys) {
+        const id = key.replace('.md', '');
+        const remoteContent = await sync.download(key, r2Config);
+        await storage.writeNote(id, remoteContent);
+        downloadCount++;
+      }
+
+      // 3. Rebuild index after downloads
+      await loadNotes();
+      
       setSyncStatus("success");
-      alert(`Synced ${notesToSync.length} notes successfully.`);
+      alert(`Sync Complete!\nUploaded: ${uploadCount}\nDownloaded: ${downloadCount}`);
       setTimeout(() => setSyncStatus("idle"), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Manual Sync Error:", err);
       setSyncStatus("error");
-      alert("Sync failed. Check S3 credentials and CORS policy.");
+      alert(`Sync failed: ${err.message}\nCheck CORS and Credentials.`);
     }
-  }, [indexer, storage, sync, r2Config]);
+  }, [indexer, storage, sync, r2Config, loadNotes]);
 
   useEffect(() => {
     loadNotes();

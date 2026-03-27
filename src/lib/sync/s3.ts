@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { SyncProvider, SyncConfig } from './types';
 
 export class S3SyncProvider implements SyncProvider {
@@ -12,6 +12,19 @@ export class S3SyncProvider implements SyncProvider {
         secretAccessKey: config.secretKey,
       },
     });
+  }
+
+  async listRemote(config: SyncConfig): Promise<string[]> {
+    const client = this.getClient(config);
+    try {
+      const response = await client.send(new ListObjectsV2Command({
+        Bucket: config.bucket,
+      }));
+      return response.Contents?.map(obj => obj.Key || '').filter(k => k.endsWith('.md')) || [];
+    } catch (err: any) {
+      console.error("S3 List Error:", err.message);
+      throw err;
+    }
   }
 
   async upload(name: string, content: string, config: SyncConfig): Promise<void> {

@@ -10,5 +10,5 @@ export interface SyncConfig {
 export interface SyncProvider {
   upload(name: string, content: string, config: SyncConfig): Promise<void>;
   download(name: string, config: SyncConfig): Promise<string>;
-  // Future: listRemote, compareHashes, etc.
+  listRemote(config: SyncConfig): Promise<string[]>;
 }
