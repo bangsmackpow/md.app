@@ -60,7 +60,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     return Response.json({ success: true, token, userId: user.id, vaults });
   } catch (e: any) {
-    console.error("Auth Error:", e);
-    return Response.json({ error: "Authentication server error" }, { status: 500 });
+    return Response.json({ error: `Server Error: ${e.message}` }, { status: 500 });
   }
 };
