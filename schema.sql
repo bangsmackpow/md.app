@@ -36,3 +36,16 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires_at INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+-- Note Revisions (Audit & History)
+CREATE TABLE IF NOT EXISTS note_revisions (
+    id TEXT PRIMARY KEY,
+    vault_id TEXT NOT NULL,
+    note_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s', 'now')),
+    FOREIGN KEY (vault_id) REFERENCES vaults(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);

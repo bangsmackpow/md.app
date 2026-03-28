@@ -86,6 +86,8 @@ export default function MdApp() {
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [activeVaultId, setActiveVaultId] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
+  const [isVaultMenuOpen, setIsVaultMenuOpen] = useState(false);
 
   const [r2Config, setR2Config] = useState<SyncConfig>({
     endpoint: "",
@@ -93,10 +95,6 @@ export default function MdApp() {
     secretKey: "",
     bucket: ""
   });
-
-  const [showSlashMenu, setShowSlashMenu] = useState(false);
-  const [slashSearch, setSlashSearch] = useState("");
-  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
 
   const activeVault = useMemo(() => vaults.find(v => v.id === activeVaultId), [vaults, activeVaultId]);
 
@@ -116,6 +114,16 @@ export default function MdApp() {
   const indexer = useMemo(() => getIndexProvider(), []);
   const sync = useMemo(() => getSyncProvider(), []);
 
+  const folders = useMemo(() => {
+    const set = new Set<string>();
+    notes.forEach(n => {
+      if (n.id.includes('/')) {
+        set.add(n.id.split('/')[0]);
+      }
+    });
+    return Array.from(set).sort();
+  }, [notes]);
+
   const filteredCommands = useMemo(() => {
     if (!slashSearch) return SLASH_COMMANDS;
     return SLASH_COMMANDS.filter(cmd => 
@@ -126,6 +134,15 @@ export default function MdApp() {
 
   const filteredNotes = useMemo(() => {
     let list = notes;
+    
+    // 1. Filter by Folder
+    if (activeFolder) {
+      list = list.filter(n => n.id.startsWith(`${activeFolder}/`));
+    } else {
+      // Root only
+      list = list.filter(n => !n.id.includes('/'));
+    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter(n => 
@@ -135,7 +152,7 @@ export default function MdApp() {
       );
     }
     return list;
-  }, [notes, searchQuery]);
+  }, [notes, searchQuery, activeFolder]);
 
   const editorRef = React.useRef<any>(null);
 
@@ -143,7 +160,15 @@ export default function MdApp() {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   const loadAuth = useCallback(async () => {
+    // Check if we should show landing (if no auth token and on web root)
     const { value } = await Preferences.get({ key: 'auth_token' });
+    const params = new URLSearchParams(window.location.search);
+    
+    if (!value && typeof window !== 'undefined' && !params.has('auth')) {
+      window.location.href = '/landing';
+      return;
+    }
+
     if (value) {
       setAuthToken(value);
       // Fetch vaults from backend
@@ -441,11 +466,13 @@ export default function MdApp() {
   };
 
   const saveNote = useCallback(async (overrideContent?: string) => {
-    if (!fileName) return;
+    if (!fileName || !activeVaultId || !authToken) return;
     const contentToSave = overrideContent !== undefined ? overrideContent : content;
+    
+    // 1. Save locally
     await storage.writeNote(fileName, contentToSave);
     
-    // Update Index
+    // 2. Update Index
     const h1Line = contentToSave.split('\n').find(l => l.startsWith('# '));
     const title = h1Line ? h1Line.replace('# ', '').trim() : fileName;
     const tags = Array.from(contentToSave.matchAll(/#(\w+)/g)).map(m => m[1]);
@@ -460,8 +487,24 @@ export default function MdApp() {
     });
 
     loadNotes();
-    syncToCloud(fileName, contentToSave);
-  }, [fileName, content, storage, indexer, loadNotes, syncToCloud]);
+
+    // 3. Sync to cloud
+    await syncToCloud(fileName, contentToSave);
+
+    // 4. Create Revision (Enterprise)
+    try {
+      await fetch(`/api/vaults/revisions?id=${activeVaultId}`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ noteId: fileName, content: contentToSave })
+      });
+    } catch (e) {
+      console.error("Revision history failed, but note was saved.");
+    }
+  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, syncToCloud]);
 
   const toggleCheckbox = useCallback((lineIndex: number) => {
     const lines = content.split('\n');
@@ -638,10 +681,59 @@ export default function MdApp() {
         {view === "list" && (
           <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
             <header className="p-6 pb-2 flex justify-between items-start">
-              <div>
-                <h1 className="text-3xl font-black tracking-tighter italic">md.app</h1>
-                <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Built Networks</p>
+              <div className="relative">
+                <button 
+                  onClick={() => setIsVaultMenuOpen(!isVaultMenuOpen)}
+                  className="flex items-center gap-2 group"
+                >
+                  <div>
+                    <h1 className="text-3xl font-black tracking-tighter italic flex items-center gap-2">
+                      {activeVault?.name || "md.app"}
+                      <ChevronDown size={20} className={`text-zinc-300 group-hover:text-zinc-500 transition-transform ${isVaultMenuOpen ? "rotate-180" : ""}`} />
+                    </h1>
+                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{activeVault?.role === 'owner' ? 'Personal Vault' : 'Shared Vault'}</p>
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {isVaultMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsVaultMenuOpen(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                      >
+                        <div className="p-2 space-y-1">
+                          {vaults.map(v => (
+                            <button 
+                              key={v.id}
+                              onClick={() => { setActiveVaultId(v.id); setIsVaultMenuOpen(false); }}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-colors ${activeVaultId === v.id ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                            >
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold truncate">{v.name}</div>
+                                <div className="text-[10px] opacity-60 uppercase font-bold tracking-widest">{v.role}</div>
+                              </div>
+                              {activeVaultId === v.id && <div className="w-2 h-2 bg-blue-500 rounded-full" />}
+                            </button>
+                          ))}
+                          <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+                          <button 
+                            onClick={() => { createNewVault(); setIsVaultMenuOpen(false); }}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
+                          >
+                            <Plus size={18} />
+                            <span className="text-sm font-bold">New Vault</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
               </div>
+              
               <button onClick={() => setView("settings")} className="p-3 bg-zinc-200 dark:bg-zinc-800 rounded-full active:scale-90 transition-transform relative">
                 <Settings size={20} />
                 {updateInfo && <span className="absolute top-0 right-0 w-3 h-3 bg-blue-500 border-2 border-zinc-50 dark:border-zinc-950 rounded-full"></span>}
