@@ -94,6 +94,10 @@ export default function MdApp() {
     bucket: ""
   });
 
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashSearch, setSlashSearch] = useState("");
+  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+
   const activeVault = useMemo(() => vaults.find(v => v.id === activeVaultId), [vaults, activeVaultId]);
 
   // Update sync config whenever active vault changes
