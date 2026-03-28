@@ -199,6 +199,49 @@ export default function MdApp() {
     }
   };
 
+  const handleShareVault = async (email: string) => {
+    if (!activeVaultId || !authToken || !email) return;
+    try {
+      const res = await fetch('/api/vaults/share', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, vaultId: activeVaultId })
+      });
+      const data = await res.json() as any;
+      if (res.ok) {
+        alert("Vault shared successfully!");
+      } else {
+        alert(data.error || "Sharing failed.");
+      }
+    } catch (e) {
+      alert("Error connecting to backend.");
+    }
+  };
+
+  const createNewVault = async () => {
+    const name = prompt("Enter vault name:");
+    if (!name || !authToken) return;
+
+    try {
+      const res = await fetch('/api/vaults', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name })
+      });
+      if (res.ok) {
+        loadAuth(); // Refresh vaults
+      }
+    } catch (e) {
+      alert("Failed to create vault.");
+    }
+  };
+
   const handleLogout = async () => {
     await Preferences.remove({ key: 'auth_token' });
     setAuthToken(null);
