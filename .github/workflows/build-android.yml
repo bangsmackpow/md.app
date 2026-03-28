@@ -2,6 +2,15 @@ name: Build Android APK
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'functions/**'
+      - 'public/**'
+      - 'wrangler.json'
+      - 'next.config.ts'
+      - 'tsconfig.json'
+      - 'package.json' # We still need this for dependencies, but we'll ignore it if ONLY version changes later if possible.
   workflow_dispatch:
 
 jobs:

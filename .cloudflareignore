@@ -1,0 +1,8 @@
+android/
+.github/
+PLAN.md
+README.md
+schema.sql
+bun.lock
+capacitor.config.ts
+*.apk
