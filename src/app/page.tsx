@@ -93,6 +93,7 @@ export default function MdApp() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [isVaultMenuOpen, setIsVaultMenuOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashSearch, setSlashSearch] = useState("");
