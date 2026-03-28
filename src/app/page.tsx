@@ -93,6 +93,7 @@ export default function MdApp() {
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authError, setAuthError] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [activeVaultId, setActiveVaultId] = useState<string | null>(null);
@@ -260,7 +261,8 @@ export default function MdApp() {
   };
 
   const createNewVault = async () => {
-    const name = prompt("Enter vault name:");
+    if (typeof window === 'undefined') return;
+    const name = window.prompt("Enter vault name:");
     if (!name || !authToken) return;
 
     try {
@@ -1005,6 +1007,30 @@ export default function MdApp() {
                               {cmd.icon}
                             </div>
                             <div className="flex-1 min-w-0">
+                              <div className="text-sm font-bold truncate">{cmd.label}</div>
+                              <div className="text-[10px] text-zinc-500 truncate">{cmd.description}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-zinc-400 text-xs font-medium italic">
+                        No commands found for &quot;{slashSearch}&quot;
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-800/30 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-center pb-8">
+                    <span className="text-[10px] text-zinc-400 font-medium">↑↓ to navigate · Enter to select</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </main>
+  );
+}                       <div className="flex-1 min-w-0">
                               <div className="text-sm font-bold truncate">{cmd.label}</div>
                               <div className="text-[10px] text-zinc-500 truncate">{cmd.description}</div>
                             </div>
