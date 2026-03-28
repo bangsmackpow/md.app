@@ -160,10 +160,10 @@ export default function MdApp() {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   const loadAuth = useCallback(async () => {
-    // Check if we should show landing (if no auth token and on web root)
     const { value } = await Preferences.get({ key: 'auth_token' });
     const params = new URLSearchParams(window.location.search);
     
+    // Redirect web users to landing if not authenticated
     if (!value && typeof window !== 'undefined' && !params.has('auth')) {
       window.location.href = '/landing';
       return;
@@ -171,20 +171,16 @@ export default function MdApp() {
 
     if (value) {
       setAuthToken(value);
-      // Fetch vaults from backend
       try {
         const res = await fetch('/api/vaults', {
           headers: { 'Authorization': `Bearer ${value}` }
         });
         const data = await res.json() as Vault[];
         setVaults(data);
-        if (data.length > 0) {
-          setActiveVaultId(data[0].id);
-        }
+        if (data.length > 0) setActiveVaultId(data[0].id);
         setView("list");
       } catch (e) {
-        console.error("Failed to load vaults", e);
-        setView("list"); // Fallback to local
+        setView("list");
       }
     } else {
       setView("auth");
@@ -638,43 +634,59 @@ export default function MdApp() {
         {view === "auth" && (
           <motion.div 
             key="auth" 
-            initial={{ opacity: 0, y: 20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            exit={{ opacity: 0, y: -20 }} 
-            className="flex-1 flex flex-col justify-center p-8 space-y-12"
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="flex-1 flex flex-col"
           >
-            <div className="text-center space-y-2">
-              <h1 className="text-5xl font-black tracking-tighter italic">md.app</h1>
-              <p className="text-zinc-500 text-sm font-bold uppercase tracking-[0.3em]">Built Networks</p>
-            </div>
-
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-2">Register with Email</label>
-                <input 
-                  type="email"
-                  value={userEmail}
-                  onChange={(e) => setUserEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl text-base shadow-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                />
+            {/* Landing or Auth logic */}
+            {(!authToken && !new URLSearchParams(window.location.search).has('auth')) ? (
+              <div className="flex-1 flex flex-col overflow-y-auto">
+                <nav className="p-8 flex justify-between items-center">
+                  <h1 className="text-2xl font-black italic">md.app</h1>
+                  <button onClick={() => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('auth', '1');
+                    window.history.pushState({}, '', url);
+                    setView("auth");
+                  }} className="px-6 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-bold rounded-full">Sign In</button>
+                </nav>
+                <div className="px-8 pt-20 pb-32 space-y-8">
+                  <h2 className="text-6xl font-black tracking-tighter leading-[0.9]">Markdown for <span className="text-blue-500">Families</span> & <span className="text-zinc-400">Companies.</span></h2>
+                  <p className="text-xl text-zinc-500 font-medium max-w-sm">A local-first, premium note-taking experience with end-to-end data ownership.</p>
+                  <button onClick={() => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('auth', '1');
+                    window.history.pushState({}, '', url);
+                    setView("auth");
+                  }} className="px-10 py-5 bg-blue-500 text-white text-lg font-black rounded-3xl flex items-center gap-3 w-fit">Get Started <ChevronLeft size={20} className="rotate-180" /></button>
+                </div>
               </div>
-              
-              <button 
-                onClick={handleRegister}
-                disabled={syncStatus === "syncing"}
-                className="w-full py-5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black rounded-3xl shadow-xl active:scale-[0.98] transition-transform flex items-center justify-center gap-3 disabled:opacity-50"
-              >
-                {syncStatus === "syncing" ? "Connecting..." : "Get Started"}
-                <ChevronLeft size={20} className="rotate-180" />
-              </button>
-            </div>
-
-            <div className="text-center">
-              <p className="text-[10px] text-zinc-400 font-medium leading-relaxed max-w-[200px] mx-auto">
-                By continuing, you agree to our terms of service and data ownership policy.
-              </p>
-            </div>
+            ) : (
+              <div className="flex-1 flex flex-col justify-center p-8 space-y-12">
+                <div className="text-center space-y-2">
+                  <h1 className="text-5xl font-black tracking-tighter italic">md.app</h1>
+                  <p className="text-zinc-500 text-sm font-bold uppercase tracking-[0.3em]">Sign In</p>
+                </div>
+                <div className="space-y-6">
+                  <input 
+                    type="email"
+                    value={userEmail}
+                    onChange={(e) => setUserEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl text-base outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  />
+                  <button 
+                    onClick={handleRegister}
+                    disabled={syncStatus === "syncing"}
+                    className="w-full py-5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black rounded-3xl shadow-xl active:scale-[0.98] transition-transform flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {syncStatus === "syncing" ? "Connecting..." : "Get Started"}
+                    <ChevronLeft size={20} className="rotate-180" />
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
