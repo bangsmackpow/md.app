@@ -208,7 +208,11 @@ export default function MdApp() {
     setSyncStatus("syncing");
     setAuthError(null);
     try {
-      const res = await fetch('/api/auth/register', {
+      const apiBase = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && !window.location.port.includes('3000') 
+        ? '' 
+        : 'https://markdownapp.pages.dev';
+
+      const res = await fetch(`${apiBase}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail.trim(), password: userPassword, mode: authMode })

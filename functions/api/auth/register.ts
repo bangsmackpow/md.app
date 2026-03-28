@@ -34,8 +34,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       
       // Create Default Vault
       const vaultId = crypto.randomUUID();
-      await env.DB.prepare("INSERT INTO vaults (id, name, owner_id, r2_bucket) VALUES (?, ?, ?, ?)")
-        .bind(vaultId, "My Notes", userId, "md-app-notes").run();
+      await env.DB.prepare("INSERT INTO vaults (id, name, owner_id, r2_bucket, r2_endpoint, r2_access_key, r2_secret_key) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .bind(vaultId, "My Notes", userId, "md-app-notes", "", "", "").run();
       
       await env.DB.prepare("INSERT INTO vault_members (vault_id, user_id, role) VALUES (?, ?, ?)")
         .bind(vaultId, userId, "owner").run();
