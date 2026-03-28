@@ -116,7 +116,13 @@ export default function MdApp() {
   const indexer = useMemo(() => getIndexProvider(), []);
   const sync = useMemo(() => getSyncProvider(), []);
 
-  // ... (filteredCommands remain same)
+  const filteredCommands = useMemo(() => {
+    if (!slashSearch) return SLASH_COMMANDS;
+    return SLASH_COMMANDS.filter(cmd => 
+      cmd.label.toLowerCase().includes(slashSearch.toLowerCase()) ||
+      cmd.id.toLowerCase().includes(slashSearch.toLowerCase())
+    );
+  }, [slashSearch]);
 
   const filteredNotes = useMemo(() => {
     let list = notes;
