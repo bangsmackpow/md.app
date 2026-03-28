@@ -5,10 +5,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Edit3, Eye, Save, Plus, ChevronLeft, 
+  Edit3, Eye, Save, Plus, ChevronLeft, ChevronDown,
   FileText, Trash2, CheckSquare, Heading, 
   Type, Settings, Share, X, Cloud, CloudOff,
-  List, ListOrdered, Minus, Code, Bold, Italic, Link as LinkIcon, Image as ImageIcon
+  List, ListOrdered, Minus, Code, Bold, Italic, Link as LinkIcon, Image as ImageIcon,
+  Folder, History, UserPlus, LogOut
 } from "lucide-react";
 
 // Storage & Indexing & Sync
@@ -167,10 +168,12 @@ export default function MdApp() {
     const { value } = await Preferences.get({ key: 'auth_token' });
     const params = new URLSearchParams(window.location.search);
     
-    // Redirect web users to landing if not authenticated
+    // Web only: Redirect to landing if not authenticated and not explicitly requesting auth
     if (!value && typeof window !== 'undefined' && !params.has('auth')) {
-      window.location.href = '/landing';
-      return;
+      if (window.location.pathname === '/') {
+        window.location.href = '/landing';
+        return;
+      }
     }
 
     if (value) {
@@ -179,12 +182,19 @@ export default function MdApp() {
         const res = await fetch('/api/vaults', {
           headers: { 'Authorization': `Bearer ${value}` }
         });
-        const data = await res.json() as Vault[];
-        setVaults(data);
-        if (data.length > 0) setActiveVaultId(data[0].id);
-        setView("list");
+        if (res.ok) {
+          const data = await res.json() as Vault[];
+          setVaults(data);
+          if (data.length > 0) setActiveVaultId(data[0].id);
+          setView("list");
+        } else {
+          // Token might be expired or invalid
+          await Preferences.remove({ key: 'auth_token' });
+          setAuthToken(null);
+          setView("auth");
+        }
       } catch (e) {
-        setView("list");
+        setView("list"); // Fallback to local
       }
     } else {
       setView("auth");
