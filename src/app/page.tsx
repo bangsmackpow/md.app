@@ -91,6 +91,8 @@ export default function MdApp() {
   
   // Auth & Vault State
   const [userEmail, setUserEmail] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [activeVaultId, setActiveVaultId] = useState<string | null>(null);
