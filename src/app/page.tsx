@@ -211,30 +211,51 @@ export default function MdApp() {
   }, []);
 
   const saveSettings = async () => {
+    if (!activeVaultId || !authToken) return;
+
     // Clean and Trim values
     let endpoint = r2Config.endpoint.trim();
-    
-    // Ensure protocol
     if (endpoint && !endpoint.startsWith('http')) {
       endpoint = `https://${endpoint}`;
     }
 
-    // Strip bucket name from endpoint if present (AWS SDK appends it)
     const bucketTrim = r2Config.bucket.trim();
     if (endpoint.endsWith(`/${bucketTrim}`)) {
       endpoint = endpoint.substring(0, endpoint.length - bucketTrim.length - 1);
     }
 
-    const trimmedConfig = {
-      endpoint,
-      accessKey: r2Config.accessKey.trim(),
-      secretKey: r2Config.secretKey.trim(),
-      bucket: bucketTrim
+    const configToSave = {
+      name: activeVault?.name || "My Notes",
+      r2_endpoint: endpoint,
+      r2_access_key: r2Config.accessKey.trim(),
+      r2_secret_key: r2Config.secretKey.trim(),
+      r2_bucket: bucketTrim
     };
-    setR2Config(trimmedConfig);
-    await Preferences.set({ key: 'r2_config', value: JSON.stringify(trimmedConfig) });
-    alert("Settings Saved & Cleaned!");
-    setView("list");
+
+    setSyncStatus("syncing");
+    try {
+      const res = await fetch(`/api/vaults?id=${activeVaultId}`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(configToSave)
+      });
+      
+      if (res.ok) {
+        // Update local state
+        setVaults(prev => prev.map(v => v.id === activeVaultId ? { ...v, ...configToSave } : v));
+        alert("Vault Credentials Saved to Cloud!");
+        setView("list");
+      } else {
+        alert("Failed to save to cloud.");
+      }
+    } catch (e) {
+      alert("Error connecting to backend.");
+    } finally {
+      setSyncStatus("idle");
+    }
   };
 
   const handleImportConfig = (e: React.ChangeEvent<HTMLInputElement>) => {
