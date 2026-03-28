@@ -72,7 +72,12 @@ interface Vault {
 }
 
 export default function MdApp() {
+  const [mounted, setMounted] = useState(false);
   const [view, setView] = useState<ViewState>("auth");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
 
   const [editMode, setEditMode] = useState<"edit" | "preview">("edit");
@@ -168,13 +173,15 @@ export default function MdApp() {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   const loadAuth = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    
     const { value } = await Preferences.get({ key: 'auth_token' });
     const params = new URLSearchParams(window.location.search);
     const authParam = params.has('auth');
     setIsAuthGated(authParam);
     
     // Redirect web users to landing if not authenticated and not explicitly requesting auth
-    if (!value && typeof window !== 'undefined' && !authParam) {
+    if (!value && !authParam) {
       const path = window.location.pathname;
       if (path === '/' || path === '' || path.includes('index.html')) {
         window.location.replace('/landing');
@@ -421,15 +428,15 @@ export default function MdApp() {
   }, [indexer, storage, sync, r2Config, loadNotes]);
 
   useEffect(() => {
+    loadAuth();
     loadNotes();
     loadConfig();
     checkForUpdates();
-    setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
-    // Polyfill Buffer for S3 Client
     if (typeof window !== "undefined") {
+      setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
       (window as any).Buffer = Buffer;
     }
-  }, [loadNotes, loadConfig, checkForUpdates]);
+  }, [loadAuth, loadNotes, loadConfig, checkForUpdates]);
 
   const syncToCloud = useCallback(async (name: string, body: string) => {
     if (!r2Config.accessKey || !r2Config.endpoint) return;
@@ -515,7 +522,7 @@ export default function MdApp() {
 
   const deleteNote = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete ${id}?`)) return;
+    if (typeof window !== 'undefined' && !window.confirm(`Delete ${id}?`)) return;
     await storage.deleteNote(id);
     await indexer.deleteNote(id);
     loadNotes();
@@ -619,6 +626,10 @@ export default function MdApp() {
     }
   };
 
+  if (!mounted) return <div className="h-screen w-screen bg-zinc-50 dark:bg-zinc-950" />;
+
+  if (!mounted) return <div className="h-screen w-screen bg-zinc-50 dark:bg-zinc-950" />;
+
   return (
     <main onKeyDown={handleKeyDown} className="h-screen w-screen overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 pt-[env(safe-area-inset-top)]">
       <AnimatePresence mode="wait">
@@ -631,7 +642,7 @@ export default function MdApp() {
             className="flex-1 flex flex-col"
           >
             {/* Landing or Auth logic */}
-            {(!authToken && !new URLSearchParams(window.location.search).has('auth')) ? (
+            {(!authToken && !isAuthGated) ? (
               <div className="flex-1 flex flex-col overflow-y-auto">
                 <nav className="p-8 flex justify-between items-center">
                   <h1 className="text-2xl font-black italic">md.app</h1>
