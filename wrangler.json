@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "md-app",
+  "pages_build_output_dir": ".next",
+  "compatibility_date": "2026-03-27",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "md-app-db",
+      "database_id": "REPLACE_WITH_YOUR_D1_ID"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "NOTES_BUCKET",
+      "bucket_name": "md-app-notes"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
