@@ -72,7 +72,9 @@ interface Vault {
 }
 
 export default function MdApp() {
-  const [view, setView] = useState<ViewState>("list");
+  const [view, setView] = useState<ViewState>("auth");
+
+
   const [editMode, setEditMode] = useState<"edit" | "preview">("edit");
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState("");
@@ -168,10 +170,11 @@ export default function MdApp() {
     const { value } = await Preferences.get({ key: 'auth_token' });
     const params = new URLSearchParams(window.location.search);
     
-    // Web only: Redirect to landing if not authenticated and not explicitly requesting auth
+    // Redirect web users to landing if not authenticated and not explicitly requesting auth
     if (!value && typeof window !== 'undefined' && !params.has('auth')) {
-      if (window.location.pathname === '/') {
-        window.location.href = '/landing';
+      const path = window.location.pathname;
+      if (path === '/' || path === '' || path.includes('index.html')) {
+        window.location.replace('/landing');
         return;
       }
     }
@@ -203,10 +206,7 @@ export default function MdApp() {
   }, []);
 
   const handleRegister = async () => {
-    if (!userEmail || !userEmail.includes("@")) {
-      alert("Please enter a valid email.");
-      return;
-    }
+    if (!userEmail || !userEmail.includes("@")) return;
     
     setSyncStatus("syncing");
     try {
@@ -222,13 +222,10 @@ export default function MdApp() {
         setAuthToken(data.token);
         setVaults(data.vaults || []);
         if (data.vaults?.length > 0) setActiveVaultId(data.vaults[0].id);
-        alert("Welcome to md.app!");
         setView("list");
-      } else {
-        alert(data.error || "Authentication failed.");
       }
     } catch (e) {
-      alert("API unreachable. Ensure your Pages Functions are deployed.");
+      console.error("Auth failed");
     } finally {
       setSyncStatus("idle");
     }
@@ -237,7 +234,7 @@ export default function MdApp() {
   const handleShareVault = async (email: string) => {
     if (!activeVaultId || !authToken || !email) return;
     try {
-      const res = await fetch('/api/vaults/share', {
+      await fetch('/api/vaults/share', {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${authToken}`,
@@ -245,14 +242,8 @@ export default function MdApp() {
         },
         body: JSON.stringify({ email, vaultId: activeVaultId })
       });
-      const data = await res.json() as any;
-      if (res.ok) {
-        alert("Vault shared successfully!");
-      } else {
-        alert(data.error || "Sharing failed.");
-      }
     } catch (e) {
-      alert("Error connecting to backend.");
+      console.error("Sharing failed");
     }
   };
 
@@ -270,10 +261,10 @@ export default function MdApp() {
         body: JSON.stringify({ name })
       });
       if (res.ok) {
-        loadAuth(); // Refresh vaults
+        loadAuth(); 
       }
     } catch (e) {
-      alert("Failed to create vault.");
+      console.error("Vault creation failed");
     }
   };
 
@@ -291,7 +282,6 @@ export default function MdApp() {
   const saveSettings = async () => {
     if (!activeVaultId || !authToken) return;
 
-    // Clean and Trim values
     let endpoint = r2Config.endpoint.trim();
     if (endpoint && !endpoint.startsWith('http')) {
       endpoint = `https://${endpoint}`;
@@ -322,15 +312,11 @@ export default function MdApp() {
       });
       
       if (res.ok) {
-        // Update local state
         setVaults(prev => prev.map(v => v.id === activeVaultId ? { ...v, ...configToSave } : v));
-        alert("Vault Credentials Saved to Cloud!");
         setView("list");
-      } else {
-        alert("Failed to save to cloud.");
       }
     } catch (e) {
-      alert("Error connecting to backend.");
+      console.error("Save settings failed");
     } finally {
       setSyncStatus("idle");
     }
@@ -385,13 +371,9 @@ export default function MdApp() {
   }, [storage, indexer]);
 
   const checkForUpdates = useCallback(async () => {
-    console.log("Manually checking for updates...");
     const release = await checkUpdates(versionData.version);
     if (release) {
       setUpdateInfo(release);
-      alert(`Update found!\nLocal: ${versionData.version}\nRemote: ${release.tag_name}`);
-    } else {
-      alert(`No update needed.\nLocal: ${versionData.version}\n(Checked GitHub successfully)`);
     }
   }, []);
 
@@ -427,19 +409,11 @@ export default function MdApp() {
 
       // 3. Rebuild index after downloads
       await loadNotes();
-      
       setSyncStatus("success");
-      alert(`Sync Complete!\nUploaded: ${uploadCount}\nDownloaded: ${downloadCount}`);
       setTimeout(() => setSyncStatus("idle"), 3000);
     } catch (err: any) {
       console.error("Manual Sync Error:", err);
       setSyncStatus("error");
-      
-      if (err.message.includes("fetch") || err.name === "TypeError") {
-        alert(`Sync Failed (CORS/Network Error)\n\nYOUR APP ORIGIN: ${currentOrigin}\n\nAction: In Cloudflare R2 Settings, ensure your CORS policy allows "${currentOrigin}"`);
-      } else {
-        alert(`Sync failed: ${err.name} - ${err.message}\nCheck Credentials.`);
-      }
     }
   }, [indexer, storage, sync, r2Config, loadNotes]);
 
