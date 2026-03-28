@@ -3,7 +3,7 @@
 
 @layer base {
   html, body {
-    @apply h-full overflow-hidden antialiased select-none bg-zinc-50 dark:bg-zinc-950;
+    @apply h-full overflow-x-hidden antialiased select-none bg-zinc-50 dark:bg-zinc-950;
     -webkit-tap-highlight-color: transparent;
   }
 

@@ -28,7 +28,7 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             className="text-6xl md:text-8xl font-black tracking-tighter leading-[0.9] mb-8"
           >
-            Markdown for <span className="text-blue-500">Families</span> & <span className="text-zinc-400">Companies.</span>
+            Markdown for <span className="text-blue-500">Families</span>, <span className="text-zinc-400">Teams,</span> & <span className="text-zinc-400">Companies.</span>
           </motion.h2>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
