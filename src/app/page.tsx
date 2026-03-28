@@ -82,6 +82,7 @@ export default function MdApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [updateInfo, setUpdateInfo] = useState<GitHubRelease | null>(null);
+  const [isAuthGated, setIsAuthGated] = useState(false);
   
   // Auth & Vault State
   const [userEmail, setUserEmail] = useState("");
