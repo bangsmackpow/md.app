@@ -159,12 +159,6 @@ export default function MdApp() {
     return list;
   }, [notes, searchQuery, activeFolder]);
 
-  const [showSlashMenu, setShowSlashMenu] = useState(false);
-  const [slashSearch, setSlashSearch] = useState("");
-  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
-  const editorRef = React.useRef<any>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
   const loadAuth = useCallback(async () => {
     if (typeof window === 'undefined') return;
     setIsAuthLoading(true);
