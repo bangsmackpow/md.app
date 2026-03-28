@@ -170,9 +170,11 @@ export default function MdApp() {
   const loadAuth = useCallback(async () => {
     const { value } = await Preferences.get({ key: 'auth_token' });
     const params = new URLSearchParams(window.location.search);
+    const authParam = params.has('auth');
+    setIsAuthGated(authParam);
     
     // Redirect web users to landing if not authenticated and not explicitly requesting auth
-    if (!value && typeof window !== 'undefined' && !params.has('auth')) {
+    if (!value && typeof window !== 'undefined' && !authParam) {
       const path = window.location.pathname;
       if (path === '/' || path === '' || path.includes('index.html')) {
         window.location.replace('/landing');
