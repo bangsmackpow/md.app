@@ -94,6 +94,10 @@ export default function MdApp() {
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [isVaultMenuOpen, setIsVaultMenuOpen] = useState(false);
 
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashSearch, setSlashSearch] = useState("");
+  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+
   const [r2Config, setR2Config] = useState<SyncConfig>({
     endpoint: "",
     accessKey: "",
