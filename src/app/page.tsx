@@ -127,6 +127,11 @@ export default function MdApp() {
     return list;
   }, [notes, searchQuery]);
 
+  const editorRef = React.useRef<any>(null);
+
+  // Use system dark mode
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
   const loadAuth = useCallback(async () => {
     const { value } = await Preferences.get({ key: 'auth_token' });
     if (value) {
