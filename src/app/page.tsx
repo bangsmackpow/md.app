@@ -160,6 +160,8 @@ export default function MdApp() {
     return list;
   }, [notes, searchQuery, activeFolder]);
 
+  const editorRef = React.useRef<any>(null);
+
   const loadAuth = useCallback(async () => {
     if (typeof window === 'undefined') return;
     setIsAuthLoading(true);
