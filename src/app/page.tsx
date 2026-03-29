@@ -74,6 +74,7 @@ export default function MdApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [updateInfo, setUpdateInfo] = useState<GitHubRelease | null>(null);
+  const [isAuthGated, setIsAuthGated] = useState(false);
   
   // Auth & Vault State
   const [userEmail, setUserEmail] = useState("");
@@ -83,10 +84,11 @@ export default function MdApp() {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [activeVaultId, setActiveVaultId] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isVaultMenuOpen, setIsVaultMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
   const [revisions, setRevisions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -158,9 +160,12 @@ export default function MdApp() {
     if (typeof window === 'undefined') return;
     const { value } = await Preferences.get({ key: 'auth_token' });
     const params = new URLSearchParams(window.location.search);
+    const authParam = params.has('auth');
+    setIsAuthGated(authParam);
     
-    if (!value && !params.has('auth')) {
-      if (window.location.pathname === '/' || window.location.pathname === '') {
+    if (!value && !authParam) {
+      const path = window.location.pathname;
+      if (path === '/' || path === '' || path.includes('index.html')) {
         window.location.replace('/landing');
         return;
       }
@@ -182,6 +187,7 @@ export default function MdApp() {
         }
       } catch (e) { setView("list"); }
     } else { setView("auth"); }
+    setIsAuthLoading(false);
   }, []);
 
   const handleRegister = async () => {
@@ -189,7 +195,11 @@ export default function MdApp() {
     setSyncStatus("syncing");
     setAuthError(null);
     try {
-      const res = await fetch('/api/auth/register', {
+      const apiBase = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && !window.location.port.includes('3000') 
+        ? '' 
+        : 'https://markdownapp.pages.dev';
+
+      const res = await fetch(`${apiBase}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail.trim(), password: userPassword, mode: authMode })
@@ -212,6 +222,11 @@ export default function MdApp() {
     setNotes(result.sort((a, b) => b.lastModified - a.lastModified));
   }, [indexer]);
 
+  const loadConfig = useCallback(async () => {
+    const { value } = await Preferences.get({ key: 'r2_config' });
+    if (value) setR2Config(JSON.parse(value));
+  }, []);
+
   const checkForUpdates = useCallback(async () => {
     try {
       const release = await checkUpdates(versionData.version);
@@ -223,12 +238,26 @@ export default function MdApp() {
     setMounted(true);
     loadAuth();
     loadNotes();
+    loadConfig();
     checkForUpdates();
     if (typeof window !== "undefined") {
       setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
       (window as any).Buffer = Buffer;
     }
-  }, [loadAuth, loadNotes, checkForUpdates]);
+  }, [loadAuth, loadNotes, loadConfig, checkForUpdates]);
+
+  const syncToCloud = useCallback(async (name: string, body: string) => {
+    if (!r2Config.accessKey || !r2Config.endpoint) return;
+    setSyncStatus("syncing");
+    try {
+      await sync.upload(name, body, r2Config);
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } catch (err) {
+      console.error("S3 Sync Error:", err);
+      setSyncStatus("error");
+    }
+  }, [r2Config, sync]);
 
   const saveNote = useCallback(async (overrideContent?: string) => {
     if (!fileName || !activeVaultId || !authToken) return;
@@ -242,7 +271,7 @@ export default function MdApp() {
     loadNotes();
     setIsDirty(false);
     if (r2Config.accessKey) {
-      try { await sync.upload(fileName, contentToSave, r2Config); } catch (e) {}
+      await syncToCloud(fileName, contentToSave);
     }
     try {
       await fetch(`/api/vaults/revisions?id=${activeVaultId}`, {
@@ -251,7 +280,14 @@ export default function MdApp() {
         body: JSON.stringify({ noteId: fileName, content: contentToSave })
       });
     } catch (e) {}
-  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, sync]);
+  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, syncToCloud]);
+
+  // AUTOSAVE every 30s
+  useEffect(() => {
+    if (!isDirty || !fileName) return;
+    const timer = setTimeout(() => saveNote(), 30000);
+    return () => clearTimeout(timer);
+  }, [content, isDirty, fileName, saveNote]);
 
   const loadHistory = async () => {
     if (!fileName || !authToken) return;
@@ -318,6 +354,27 @@ export default function MdApp() {
     setView("auth");
   };
 
+  const saveSettings = async () => {
+    if (!activeVaultId || !authToken) return;
+    let endpoint = r2Config.endpoint.trim();
+    if (endpoint && !endpoint.startsWith('http')) endpoint = `https://${endpoint}`;
+    const bucketTrim = r2Config.bucket.trim();
+    if (endpoint.endsWith(`/${bucketTrim}`)) endpoint = endpoint.substring(0, endpoint.length - bucketTrim.length - 1);
+    const configToSave = { name: activeVault?.name || "My Notes", r2_endpoint: endpoint, r2_access_key: r2Config.accessKey.trim(), r2_secret_key: r2Config.secretKey.trim(), r2_bucket: bucketTrim };
+    setSyncStatus("syncing");
+    try {
+      const res = await fetch(`/api/vaults?id=${activeVaultId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(configToSave)
+      });
+      if (res.ok) {
+        setVaults(prev => prev.map(v => v.id === activeVaultId ? { ...v, ...configToSave } : v));
+        setView("list");
+      }
+    } catch (e) { console.error("Save settings failed"); } finally { setSyncStatus("idle"); }
+  };
+
   const manualSyncAll = useCallback(async () => {
     if (!r2Config.accessKey || !r2Config.endpoint) return;
     setSyncStatus("syncing");
@@ -338,29 +395,8 @@ export default function MdApp() {
       setTimeout(() => setSyncStatus("idle"), 3000);
     } catch (err) { setSyncStatus("error"); }
   }, [indexer, storage, sync, r2Config, loadNotes]);
-        body: JSON.stringify({ noteId: fileName, content: contentToSave })
-      });
-    } catch (e) {}
-  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, sync]);
 
-  // AUTOSAVE every 30s
-  useEffect(() => {
-    if (!isDirty || !fileName) return;
-    const timer = setTimeout(() => saveNote(), 30000);
-    return () => clearTimeout(timer);
-  }, [content, isDirty, fileName, saveNote]);
-
-  const loadHistory = async () => {
-    if (!fileName || !authToken) return;
-    try {
-      const res = await fetch(`/api/vaults/revisions?noteId=${fileName}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-      const data = await res.json() as any[];
-      setRevisions(data);
-      setShowHistory(true);
-    } catch (e) {}
-  };
-
-  const insertMarkdown = useCallback((snippet: string) => {
+  const insertMarkdownSnippet = useCallback((snippet: string) => {
     if (editorRef.current) {
       const view = editorRef.current;
       const { state } = view;
@@ -376,7 +412,7 @@ export default function MdApp() {
     setSlashSearch("");
   }, []);
 
-  const handleEditorChange = useCallback((value: string, viewUpdate: any) => {
+  const handleEditorValueChange = useCallback((value: string, viewUpdate: any) => {
     setContent(value);
     setIsDirty(true);
     const { state } = viewUpdate;
@@ -398,7 +434,7 @@ export default function MdApp() {
     setShowSlashMenu(false);
   }, []);
 
-  const toggleCheckbox = useCallback((lineIndex: number) => {
+  const toggleCheckboxItem = useCallback((lineIndex: number) => {
     const lines = content.split('\n');
     const targetLine = lines[lineIndex - 1];
     if (!targetLine) return;
@@ -413,13 +449,19 @@ export default function MdApp() {
     }
   }, [content, saveNote]);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape" && view === "editor") {
+      setView("list");
+    }
+  };
+
   if (!mounted) return <div className="h-screen w-screen bg-zinc-50 dark:bg-zinc-950" />;
 
   return (
-    <main className="h-screen w-screen overflow-hidden flex bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 pt-[env(safe-area-inset-top)]">
+    <main onKeyDown={handleKeyDown} className="h-screen w-screen overflow-hidden flex bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 pt-[env(safe-area-inset-top)]">
       <AnimatePresence mode="wait">
         {view === "auth" ? (
-          <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col justify-center p-8">
+          <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col justify-center p-8">
             <div className="max-w-sm mx-auto w-full space-y-12">
               <div className="text-center space-y-2">
                 <h1 className="text-5xl font-black tracking-tighter italic">md.app</h1>
@@ -502,7 +544,7 @@ export default function MdApp() {
                   </header>
                   <div className="flex-1 flex overflow-hidden relative">
                     <div className="flex-1 relative overflow-hidden">
-                      {editMode === "edit" ? <CodeMirror value={content} height="100%" theme={isDarkMode ? 'dark' : 'light'} extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]} onChange={handleEditorChange} onCreateEditor={(view) => { editorRef.current = view; }} className="h-full text-base" /> : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ input: ({node, ...props}) => props.type === 'checkbox' ? <input {...props} className="w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer" readOnly={false} onChange={() => { const line = (node as any)?.position?.start.line; if (line) toggleCheckbox(line); }} /> : <input {...props} /> }}>{content}</ReactMarkdown></div>}
+                      {editMode === "edit" ? <CodeMirror value={content} height="100%" theme={isDarkMode ? 'dark' : 'light'} extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]} onChange={handleEditorValueChange} onCreateEditor={(view) => { editorRef.current = view; }} className="h-full text-base" /> : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ input: ({node, ...props}) => props.type === 'checkbox' ? <input {...props} className="w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer" readOnly={false} onChange={() => { const line = (node as any)?.position?.start.line; if (line) toggleCheckboxItem(line); }} /> : <input {...props} /> }}>{content}</ReactMarkdown></div>}
                     </div>
                     <AnimatePresence>{showHistory && <motion.div initial={{ x: 300 }} animate={{ x: 0 }} exit={{ x: 300 }} className="absolute inset-y-0 right-0 w-72 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 z-20 flex flex-col shadow-2xl"><div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center"><h3 className="text-xs font-black uppercase tracking-widest">History</h3><button onClick={() => setShowHistory(false)}><X size={16} /></button></div><div className="flex-1 overflow-y-auto p-2 space-y-1">{revisions.map(rev => (<button key={rev.id} onClick={() => { if(confirm("Restore this version?")) { setContent(rev.content); setIsDirty(true); setShowHistory(false); } }} className="w-full p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-colors"><div className="text-[10px] font-black text-blue-500 uppercase mb-1">#{rev.hash}</div><div className="text-[10px] text-zinc-500 font-bold">{new Date(rev.created_at * 1000).toLocaleString()}</div><div className="text-[9px] text-zinc-400 truncate mt-1">by {rev.author}</div></button>))}</div></motion.div>}</AnimatePresence>
                   </div>
