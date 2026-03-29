@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY, 
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT,
+    is_activated INTEGER DEFAULT 0,
     created_at INTEGER DEFAULT (strftime('%s', 'now')),
     last_login INTEGER
 );
