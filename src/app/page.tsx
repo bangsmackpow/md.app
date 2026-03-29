@@ -253,6 +253,96 @@ export default function MdApp() {
     } catch (e) {}
   }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, sync]);
 
+  const loadHistory = async () => {
+    if (!fileName || !authToken) return;
+    try {
+      const res = await fetch(`/api/vaults/revisions?noteId=${fileName}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+      const data = await res.json() as any[];
+      setRevisions(data);
+      setShowHistory(true);
+    } catch (e) {}
+  };
+
+  const handleShareVault = async (email: string) => {
+    if (!activeVaultId || !authToken || !email) return;
+    try {
+      const res = await fetch('/api/vaults/share', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, vaultId: activeVaultId })
+      });
+      if (res.ok) {
+        alert("Vault shared successfully!");
+      }
+    } catch (e) {
+      console.error("Sharing failed");
+    }
+  };
+
+  const createNewVault = async () => {
+    if (typeof window === 'undefined') return;
+    const name = window.prompt("Enter vault name:");
+    if (!name || !authToken) return;
+
+    try {
+      const res = await fetch('/api/vaults', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name })
+      });
+      if (res.ok) {
+        loadAuth(); 
+      }
+    } catch (e) {
+      console.error("Vault creation failed");
+    }
+  };
+
+  const deleteNote = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof window !== 'undefined' && !window.confirm(`Delete ${id}?`)) return;
+    await storage.deleteNote(id);
+    await indexer.deleteNote(id);
+    loadNotes();
+  };
+
+  const handleLogout = async () => {
+    await Preferences.remove({ key: 'auth_token' });
+    setAuthToken(null);
+    setView("auth");
+  };
+
+  const manualSyncAll = useCallback(async () => {
+    if (!r2Config.accessKey || !r2Config.endpoint) return;
+    setSyncStatus("syncing");
+    try {
+      const localNotes = await indexer.getNotes();
+      for (const note of localNotes) {
+        const c = await storage.readNote(note.id);
+        await sync.upload(note.id, c, r2Config);
+      }
+      const remoteKeys = await sync.listRemote(r2Config);
+      for (const key of remoteKeys) {
+        const id = key.replace('.md', '');
+        const rc = await sync.download(key, r2Config);
+        await storage.writeNote(id, rc);
+      }
+      await loadNotes();
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } catch (err) { setSyncStatus("error"); }
+  }, [indexer, storage, sync, r2Config, loadNotes]);
+        body: JSON.stringify({ noteId: fileName, content: contentToSave })
+      });
+    } catch (e) {}
+  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, sync]);
+
   // AUTOSAVE every 30s
   useEffect(() => {
     if (!isDirty || !fileName) return;
