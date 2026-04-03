@@ -4,6 +4,7 @@ export interface NoteMetadata {
   tags: string[];
   lastModified: number;
   snippet: string;
+  content?: string;
 }
 
 export interface IndexProvider {

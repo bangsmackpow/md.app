@@ -55,7 +55,8 @@ export class JsonIndexProvider implements IndexProvider {
       title,
       tags: [...new Set(tags)],
       lastModified,
-      snippet
+      snippet,
+      content: content.substring(0, 10000) // Index up to 10kb
     };
   }
 }

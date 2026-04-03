@@ -153,7 +153,11 @@ export default function MdApp() {
       }
     } else {
       const q = searchQuery.toLowerCase();
-      list = list.filter(n => n.title.toLowerCase().includes(q) || n.snippet.toLowerCase().includes(q));
+      list = list.filter(n => 
+        n.title.toLowerCase().includes(q) || 
+        n.snippet.toLowerCase().includes(q) ||
+        (n.content && n.content.toLowerCase().includes(q))
+      );
     }
     return list;
   }, [notes, searchQuery, activeFolder]);
@@ -313,7 +317,14 @@ export default function MdApp() {
     const title = h1Line ? h1Line.replace('# ', '').trim() : fileName;
     const tags = Array.from(contentToSave.matchAll(/#(\w+)/g)).map(m => m[1]);
     const snippet = contentToSave.replace(/^# .*\n?/, '').substring(0, 100).trim();
-    await indexer.updateNote({ id: fileName, title, tags: [...new Set(tags)], lastModified: Date.now(), snippet });
+    await indexer.updateNote({ 
+      id: fileName, 
+      title, 
+      tags: [...new Set(tags)], 
+      lastModified: Date.now(), 
+      snippet,
+      content: contentToSave.substring(0, 10000)
+    });
     loadNotes();
     setIsDirty(false);
     if (r2Config.accessKey) {
@@ -503,6 +514,15 @@ export default function MdApp() {
     }
   };
 
+  const handleAddFolder = () => {
+    const name = window.prompt("Enter folder name:");
+    if (!name) return;
+    const folderId = activeFolder ? `${activeFolder}/${name}` : name;
+    // To "create" a folder in this system, we just need to navigate to it or create a placeholder note
+    setActiveFolder(folderId);
+    setView("list");
+  };
+
   const filteredSlashCommands = SLASH_COMMANDS.filter(cmd => 
     cmd.label.toLowerCase().includes(slashSearch.toLowerCase())
   );
@@ -543,10 +563,15 @@ export default function MdApp() {
               </div>
               <div className="flex-1 overflow-y-auto px-4 space-y-6">
                 <div>
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-2 mb-3">Library</h3>
+                  <div className="flex items-center justify-between px-2 mb-3">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Library</h3>
+                    <button onClick={handleAddFolder} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors">
+                      <Plus size={14} className="text-zinc-400" />
+                    </button>
+                  </div>
                   <div className="space-y-1">
-                    <button onClick={() => setActiveFolder(null)} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${!activeFolder ? "bg-blue-500 text-white shadow-lg" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}><Database size={18} /> All Notes</button>
-                    {folders.map(f => (<button key={f} onClick={() => setActiveFolder(f)} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${activeFolder === f ? "bg-blue-500 text-white shadow-lg" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}><Folder size={18} /> {f.split('/').pop()}</button>))}
+                    <button onClick={() => { setActiveFolder(null); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${!activeFolder && view === "list" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}><Database size={18} /> All Notes</button>
+                    {folders.map(f => (<button key={f} onClick={() => { setActiveFolder(f); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${activeFolder === f && view === "list" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}><Folder size={18} /> {f.split('/').pop()}</button>))}
                   </div>
                 </div>
               </div>
@@ -663,7 +688,7 @@ export default function MdApp() {
                         <input type="password" value={passwordForm.new} onChange={(e) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
                       <div className="flex gap-4 pt-4">
-                        {!forcePasswordChange && <button onClick={() => setShowPasswordModal(false)} className="flex-1 py-4 text-zinc-500 font-black uppercase text-xs tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-2xl transition-all">Cancel</button>}
+                        {!forcePasswordChange && <button onClick={() => setShowPasswordModal(false)} className="flex-1 py-4 text-zinc-500 font-black uppercase text-xs tracking-widest hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-2xl transition-all">Cancel</button>}
                         <button onClick={handlePasswordChange} className="flex-2 px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Update</button>
                       </div>
                     </div>
