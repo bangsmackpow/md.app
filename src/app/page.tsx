@@ -9,7 +9,7 @@ import {
   FileText, Trash2, CheckSquare, Heading, 
   Type, Settings, Share, X, Cloud, CloudOff,
   List, ListOrdered, Minus, Code, Bold, Italic, Link as LinkIcon, Image as ImageIcon,
-  Folder, History, UserPlus, LogOut, Database, MoreVertical
+  Folder, History, UserPlus, LogOut, Database, MoreVertical, Shield
 } from "lucide-react";
 
 // Storage & Indexing & Sync
