@@ -653,10 +653,10 @@ export default function MdApp() {
   components={{ 
     li: ({node, children, ...props}) => {
       // Check if this list item is a task list item
-      const isTask = node?.children?.some((c: any) => c.tagName === 'input' && c.properties?.type === 'checkbox');
+      const isTask = node?.children?.some((c: any) => c.type === 'element' && (c as any).tagName === 'input' && (c as any).properties?.type === 'checkbox');
       if (isTask) {
         return (
-          <li className="flex items-start gap-2 list-none -ml-6">
+          <li className="flex items-start gap-2 list-none -ml-6" data-line={(node as any)?.position?.start.line}>
             {children}
           </li>
         );
@@ -665,19 +665,22 @@ export default function MdApp() {
     },
     input: ({node, ...props}) => {
       if (props.type === 'checkbox') {
+        const line = (node as any)?.position?.start.line;
         return (
           <input 
             {...props} 
+            disabled={false}
             className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0" 
-            readOnly={false} 
-            onChange={() => { 
-              const line = (node as any)?.position?.start.line; 
-              if (line) toggleCheckboxItem(line); 
-            }} 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (line) toggleCheckboxItem(line);
+            }}
+            onChange={() => {}} // Dummy to prevent React warning
           />
         );
       }
       return <input {...props} />;
+    }
     }
   }}
 >
