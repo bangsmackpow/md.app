@@ -11,14 +11,18 @@ async function getAdminUser(request: Request, env: Env) {
     "SELECT u.id, u.is_admin FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.token = ? AND s.expires_at > ?"
   ).bind(token, Date.now()).first() as any;
 
-  return (user && user.is_admin === 1) ? user.id : null;
+  return (user && user.is_admin === 1) ? (user.id as string) : null;
 }
 
 async function logAdminAction(env: Env, adminId: string, targetUserId: string | null, action: string, details: string) {
-  const logId = crypto.randomUUID();
-  await env.DB.prepare(
-    "INSERT INTO admin_audit_logs (id, admin_id, target_user_id, action, details) VALUES (?, ?, ?, ?, ?)"
-  ).bind(logId, adminId, targetUserId, action, details).run();
+  try {
+    const logId = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO admin_audit_logs (id, admin_id, target_user_id, action, details) VALUES (?, ?, ?, ?, ?)"
+    ).bind(logId, adminId, targetUserId, action, details).run();
+  } catch (e) {
+    console.error("Failed to log admin action", e);
+  }
 }
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
@@ -41,7 +45,15 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
   if (!id) return Response.json({ error: "User ID required" }, { status: 400 });
 
   let query = "UPDATE users SET email = ?, is_admin = ?, status = ?, force_password_change = ?, two_factor_enabled = ?, storage_quota_mb = ? WHERE id = ?";
-  let params = [email, is_admin ? 1 : 0, status || 'active', force_password_change ? 1 : 0, two_factor_enabled ? 1 : 0, storage_quota_mb, id];
+  let params = [
+    email || "", 
+    is_admin ? 1 : 0, 
+    status || 'active', 
+    force_password_change ? 1 : 0, 
+    two_factor_enabled ? 1 : 0, 
+    storage_quota_mb || 500, 
+    id
+  ];
 
   if (password) {
     const encoder = new TextEncoder();
@@ -51,7 +63,16 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
     const hashedPassword = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 
     query = "UPDATE users SET email = ?, password_hash = ?, is_admin = ?, status = ?, force_password_change = ?, two_factor_enabled = ?, storage_quota_mb = ? WHERE id = ?";
-    params = [email, hashedPassword, is_admin ? 1 : 0, status || 'active', force_password_change ? 1 : 0, two_factor_enabled ? 1 : 0, storage_quota_mb, id];
+    params = [
+      email || "", 
+      hashedPassword, 
+      is_admin ? 1 : 0, 
+      status || 'active', 
+      force_password_change ? 1 : 0, 
+      two_factor_enabled ? 1 : 0, 
+      storage_quota_mb || 500, 
+      id
+    ];
   }
 
   try {

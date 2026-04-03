@@ -54,7 +54,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       .bind(token, user.id, Date.now() + (30 * 24 * 60 * 60 * 1000)).run();
 
     // 3. Get User Details
-    const fullUser = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first() as any;
+    const fullUser = await env.DB.prepare("SELECT is_admin, force_password_change FROM users WHERE id = ?").bind(user.id).first() as any;
 
     // 4. Return vaults
     const { results: vaults } = await env.DB.prepare(
@@ -65,8 +65,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       success: true, 
       token, 
       userId: user.id, 
-      isAdmin: fullUser.is_admin === 1,
-      forcePasswordChange: fullUser.force_password_change === 1,
+      isAdmin: fullUser?.is_admin === 1,
+      forcePasswordChange: fullUser?.force_password_change === 1,
       vaults 
     });
   } catch (e: any) {
