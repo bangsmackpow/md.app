@@ -66,6 +66,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       token, 
       userId: user.id, 
       isAdmin: fullUser.is_admin === 1,
+      forcePasswordChange: fullUser.force_password_change === 1,
       vaults 
     });
   } catch (e: any) {

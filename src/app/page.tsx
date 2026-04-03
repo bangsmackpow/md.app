@@ -9,7 +9,7 @@ import {
   FileText, Trash2, CheckSquare, Heading, 
   Type, Settings, Share, X, Cloud, CloudOff,
   List, ListOrdered, Minus, Code, Bold, Italic, Link as LinkIcon, Image as ImageIcon,
-  Folder, History, UserPlus, LogOut, Database, MoreVertical, Shield
+  Folder, History, UserPlus, LogOut, Database, MoreVertical, Shield, Key
 } from "lucide-react";
 
 // Storage & Indexing & Sync
@@ -83,6 +83,9 @@ export default function MdApp() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [forcePasswordChange, setForcePasswordChange] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: "", new: "" });
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [activeVaultId, setActiveVaultId] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -176,6 +179,11 @@ export default function MdApp() {
       setAuthToken(value);
       const { value: adminVal } = await Preferences.get({ key: 'is_admin' });
       setIsAdmin(adminVal === 'true');
+      const { value: forceVal } = await Preferences.get({ key: 'force_password' });
+      if (forceVal === 'true') {
+        setForcePasswordChange(true);
+        setShowPasswordModal(true);
+      }
       try {
         const res = await fetch('/api/vaults', { headers: { 'Authorization': `Bearer ${value}` } });
         if (res.ok) {
@@ -211,8 +219,16 @@ export default function MdApp() {
       if (res.ok && data.token) {
         await Preferences.set({ key: 'auth_token', value: data.token });
         await Preferences.set({ key: 'is_admin', value: data.isAdmin ? 'true' : 'false' });
+        await Preferences.set({ key: 'force_password', value: data.forcePasswordChange ? 'true' : 'false' });
+        
         setAuthToken(data.token);
         setIsAdmin(!!data.isAdmin);
+        setForcePasswordChange(!!data.forcePasswordChange);
+        
+        if (data.forcePasswordChange) {
+          setShowPasswordModal(true);
+        }
+
         setVaults(data.vaults || []);
         if (data.vaults?.length > 0) setActiveVaultId(data.vaults[0].id);
         setView("list");
@@ -220,6 +236,31 @@ export default function MdApp() {
         setAuthError(data.error || "Authentication failed");
       }
     } catch (e) { setAuthError("Auth unreachable"); } finally { setSyncStatus("idle"); }
+  };
+
+  const handlePasswordChange = async () => {
+    if (!passwordForm.current || !passwordForm.new || !authToken) return;
+    try {
+      const res = await fetch('/api/auth/password', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ currentPassword: passwordForm.current, newPassword: passwordForm.new })
+      });
+      if (res.ok) {
+        setShowPasswordModal(false);
+        setForcePasswordChange(false);
+        await Preferences.remove({ key: 'force_password' });
+        alert("Password updated successfully!");
+      } else {
+        const data = await res.json() as any;
+        alert(data.error || "Failed to update password");
+      }
+    } catch (e) {
+      alert("Error updating password");
+    }
   };
 
   const loadNotes = useCallback(async () => {
@@ -355,6 +396,8 @@ export default function MdApp() {
 
   const handleLogout = async () => {
     await Preferences.remove({ key: 'auth_token' });
+    await Preferences.remove({ key: 'is_admin' });
+    await Preferences.remove({ key: 'force_password' });
     setAuthToken(null);
     setView("auth");
   };
@@ -460,6 +503,10 @@ export default function MdApp() {
     }
   };
 
+  const filteredSlashCommands = SLASH_COMMANDS.filter(cmd => 
+    cmd.label.toLowerCase().includes(slashSearch.toLowerCase())
+  );
+
   if (!mounted) return <div className="h-screen w-screen bg-zinc-50 dark:bg-zinc-950" />;
 
   return (
@@ -503,8 +550,9 @@ export default function MdApp() {
                   </div>
                 </div>
               </div>
-              <div className="p-6 border-t border-zinc-200 dark:border-zinc-800">
-                <button onClick={() => setView("settings")} className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"><Settings size={18} /> Settings</button>
+              <div className="p-6 border-t border-zinc-200 dark:border-zinc-800 space-y-2">
+                <button onClick={() => setView("settings")} className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all active:scale-[0.98]"><Settings size={18} /> Settings</button>
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-[0.98]"><LogOut size={18} /> Logout</button>
               </div>
             </motion.aside>
 
@@ -549,7 +597,27 @@ export default function MdApp() {
                   </header>
                   <div className="flex-1 flex overflow-hidden relative">
                     <div className="flex-1 relative overflow-hidden">
-                      {editMode === "edit" ? <CodeMirror value={content} height="100%" theme={isDarkMode ? 'dark' : 'light'} extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]} onChange={handleEditorValueChange} onCreateEditor={(view) => { editorRef.current = view; }} className="h-full text-base" /> : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ input: ({node, ...props}) => props.type === 'checkbox' ? <input {...props} className="w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer" readOnly={false} onChange={() => { const line = (node as any)?.position?.start.line; if (line) toggleCheckboxItem(line); }} /> : <input {...props} /> }}>{content}</ReactMarkdown></div>}
+                      {editMode === "edit" ? (
+                        <div className="h-full relative">
+                          <CodeMirror value={content} height="100%" theme={isDarkMode ? 'dark' : 'light'} extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]} onChange={handleEditorValueChange} onCreateEditor={(view) => { editorRef.current = view; }} className="h-full text-base" />
+                          <AnimatePresence>
+                            {showSlashMenu && (
+                              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-12 left-8 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50">
+                                <div className="p-2 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">Commands</div>
+                                <div className="max-h-64 overflow-y-auto p-1">
+                                  {filteredSlashCommands.map((cmd, idx) => (
+                                    <button key={cmd.id} onClick={() => insertMarkdownSnippet(cmd.snippet)} className={`w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors ${idx === selectedSlashIndex ? "bg-blue-500 text-white shadow-lg" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
+                                      <div className={`p-1.5 rounded-lg ${idx === selectedSlashIndex ? "bg-white/20" : "bg-zinc-50 dark:bg-zinc-800"}`}>{cmd.icon}</div>
+                                      <div><div className="text-xs font-bold">{cmd.label}</div><div className={`text-[9px] ${idx === selectedSlashIndex ? "text-white/70" : "text-zinc-400"}`}>{cmd.description}</div></div>
+                                    </button>
+                                  ))}
+                                  {filteredSlashCommands.length === 0 && <div className="p-4 text-center text-xs text-zinc-400 font-bold uppercase italic tracking-widest">No match</div>}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ) : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ input: ({node, ...props}) => props.type === 'checkbox' ? <input {...props} className="w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer" readOnly={false} onChange={() => { const line = (node as any)?.position?.start.line; if (line) toggleCheckboxItem(line); }} /> : <input {...props} /> }}>{content}</ReactMarkdown></div>}
                     </div>
                     <AnimatePresence>{showHistory && <motion.div initial={{ x: 300 }} animate={{ x: 0 }} exit={{ x: 300 }} className="absolute inset-y-0 right-0 w-72 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 z-20 flex flex-col shadow-2xl"><div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center"><h3 className="text-xs font-black uppercase tracking-widest">History</h3><button onClick={() => setShowHistory(false)}><X size={16} /></button></div><div className="flex-1 overflow-y-auto p-2 space-y-1">{revisions.map(rev => (<button key={rev.id} onClick={() => { if(confirm("Restore this version?")) { setContent(rev.content); setIsDirty(true); setShowHistory(false); } }} className="w-full p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-colors"><div className="text-[10px] font-black text-blue-500 uppercase mb-1">#{rev.hash}</div><div className="text-[10px] text-zinc-500 font-bold">{new Date(rev.created_at * 1000).toLocaleString()}</div><div className="text-[9px] text-zinc-400 truncate mt-1">by {rev.author}</div></button>))}</div></motion.div>}</AnimatePresence>
                   </div>
@@ -560,7 +628,7 @@ export default function MdApp() {
                   <section className="space-y-6">
                     <div className="space-y-4">
                       <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Account</h2>
-                      <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between"><div className="text-sm font-bold truncate">{userEmail}</div><button onClick={handleLogout} className="text-[10px] font-black text-red-500 uppercase">Sign Out</button></div>
+                      <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between"><div className="text-sm font-bold truncate">{userEmail}</div><div className="flex gap-2"><button onClick={() => setShowPasswordModal(true)} className="p-2 text-zinc-400 hover:text-blue-500"><Key size={20} /></button></div></div>
                       {isAdmin && (
                         <button onClick={() => window.location.replace("/admin")} className="w-full flex items-center justify-between p-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">
                           <span>Admin Portal</span>
@@ -576,6 +644,33 @@ export default function MdApp() {
                 </motion.div>
               )}
             </div>
+
+            <AnimatePresence>
+              {showPasswordModal && (
+                <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden">
+                    <div className="p-8 border-b border-zinc-100 dark:border-zinc-800">
+                      <h2 className="text-2xl font-black tracking-tight italic">{forcePasswordChange ? "Security Reset" : "Change Password"}</h2>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{forcePasswordChange ? "Admin has required a reset" : "Update your security"}</p>
+                    </div>
+                    <div className="p-8 space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-1">Current Password</label>
+                        <input type="password" value={passwordForm.current} onChange={(e) => setPasswordForm({...passwordForm, current: e.target.value})} className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-1">New Password</label>
+                        <input type="password" value={passwordForm.new} onChange={(e) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div className="flex gap-4 pt-4">
+                        {!forcePasswordChange && <button onClick={() => setShowPasswordModal(false)} className="flex-1 py-4 text-zinc-500 font-black uppercase text-xs tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-2xl transition-all">Cancel</button>}
+                        <button onClick={handlePasswordChange} className="flex-2 px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Update</button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </>
         )}
       </AnimatePresence>
