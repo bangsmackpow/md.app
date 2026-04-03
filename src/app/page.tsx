@@ -496,13 +496,19 @@ export default function MdApp() {
   const toggleCheckboxItem = useCallback((lineIndex: number) => {
     const lines = content.split('\n');
     const targetLine = lines[lineIndex - 1];
-    if (!targetLine) return;
+    if (targetLine === undefined) return;
+    
     let newLine = targetLine;
-    if (targetLine.includes('[ ]')) newLine = targetLine.replace('[ ]', '[x]');
-    else if (targetLine.includes('[x]')) newLine = targetLine.replace('[x]', '[ ]');
+    if (targetLine.includes('[ ]')) {
+      newLine = targetLine.replace('[ ]', '[x]');
+    } else if (targetLine.toLowerCase().includes('[x]')) {
+      newLine = targetLine.replace(/\[[xX]\]/, '[ ]');
+    }
+    
     if (newLine !== targetLine) {
-      lines[lineIndex - 1] = newLine;
-      const newContent = lines.join('\n');
+      const newLines = [...lines];
+      newLines[lineIndex - 1] = newLine;
+      const newContent = newLines.join('\n');
       setContent(newContent);
       saveNote(newContent);
     }
@@ -612,7 +618,7 @@ export default function MdApp() {
               ) : view === "editor" ? (
                 <motion.div key="editor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col overflow-hidden">
                   <header className="flex items-center justify-between px-2 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10">
-                    <div className="flex items-center min-w-0"><button onClick={() => setView("list")} className="p-2 shrink-0"><ChevronLeft size={24} /></button><input value={fileName} onChange={(e) => setFileName(e.target.value)} className="min-w-0 bg-transparent font-bold text-sm outline-none px-1" /></div>
+                    <div className="flex items-center min-w-0"><button onClick={() => setView("list")} className="p-2 shrink-0"><ChevronLeft size={24} /></button><input value={fileName.split('/').pop()} title={fileName} readOnly className="min-w-0 bg-transparent font-bold text-sm outline-none px-1 cursor-default" /></div>
                     <div className="flex gap-0.5 items-center shrink-0 pr-2">
                       <div className="px-2">{syncStatus === "syncing" && <Cloud className="animate-pulse text-blue-500" size={18} />}{syncStatus === "success" && <Cloud className="text-green-500" size={18} />}{syncStatus === "error" && <CloudOff className="text-red-500" size={18} />}</div>
                       <button onClick={loadHistory} className="p-2 text-zinc-400 hover:text-blue-500"><History size={20} /></button>
@@ -642,7 +648,42 @@ export default function MdApp() {
                             )}
                           </AnimatePresence>
                         </div>
-                      ) : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ input: ({node, ...props}) => props.type === 'checkbox' ? <input {...props} className="w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer" readOnly={false} onChange={() => { const line = (node as any)?.position?.start.line; if (line) toggleCheckboxItem(line); }} /> : <input {...props} /> }}>{content}</ReactMarkdown></div>}
+                      ) : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown 
+  sourcePos={true}
+  remarkPlugins={[remarkGfm]} 
+  components={{ 
+    li: ({node, children, ...props}) => {
+      // Check if this list item is a task list item
+      const isTask = node?.children?.some((c: any) => c.tagName === 'input' && c.properties?.type === 'checkbox');
+      if (isTask) {
+        return (
+          <li className="flex items-start gap-2 list-none -ml-6">
+            {children}
+          </li>
+        );
+      }
+      return <li {...props}>{children}</li>;
+    },
+    input: ({node, ...props}) => {
+      if (props.type === 'checkbox') {
+        return (
+          <input 
+            {...props} 
+            className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0" 
+            readOnly={false} 
+            onChange={() => { 
+              const line = (node as any)?.position?.start.line; 
+              if (line) toggleCheckboxItem(line); 
+            }} 
+          />
+        );
+      }
+      return <input {...props} />;
+    }
+  }}
+>
+  {content}
+</ReactMarkdown></div>}
                     </div>
                     <AnimatePresence>{showHistory && <motion.div initial={{ x: 300 }} animate={{ x: 0 }} exit={{ x: 300 }} className="absolute inset-y-0 right-0 w-72 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 z-20 flex flex-col shadow-2xl"><div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center"><h3 className="text-xs font-black uppercase tracking-widest">History</h3><button onClick={() => setShowHistory(false)}><X size={16} /></button></div><div className="flex-1 overflow-y-auto p-2 space-y-1">{revisions.map(rev => (<button key={rev.id} onClick={() => { if(confirm("Restore this version?")) { setContent(rev.content); setIsDirty(true); setShowHistory(false); } }} className="w-full p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-colors"><div className="text-[10px] font-black text-blue-500 uppercase mb-1">#{rev.hash}</div><div className="text-[10px] text-zinc-500 font-bold">{new Date(rev.created_at * 1000).toLocaleString()}</div><div className="text-[9px] text-zinc-400 truncate mt-1">by {rev.author}</div></button>))}</div></motion.div>}</AnimatePresence>
                   </div>
