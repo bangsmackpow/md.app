@@ -4,8 +4,26 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT,
     is_activated INTEGER DEFAULT 0,
+    is_admin INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'active', -- active, suspended, deactivated
+    force_password_change INTEGER DEFAULT 0,
+    two_factor_enabled INTEGER DEFAULT 0,
+    two_factor_secret TEXT,
+    storage_quota_mb INTEGER DEFAULT 500,
+    current_usage_bytes INTEGER DEFAULT 0,
     created_at INTEGER DEFAULT (strftime('%s', 'now')),
     last_login INTEGER
+);
+
+-- Administrative Audit Logs
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL,
+    target_user_id TEXT,
+    action TEXT NOT NULL, -- e.g., 'UPDATE_QUOTA', 'SUSPEND_USER'
+    details TEXT,
+    created_at INTEGER DEFAULT (strftime('%s', 'now')),
+    FOREIGN KEY (admin_id) REFERENCES users(id)
 );
 
 -- Vaults

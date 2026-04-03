@@ -53,12 +53,21 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     await env.DB.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
       .bind(token, user.id, Date.now() + (30 * 24 * 60 * 60 * 1000)).run();
 
-    // 3. Return vaults
+    // 3. Get User Details
+    const fullUser = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first() as any;
+
+    // 4. Return vaults
     const { results: vaults } = await env.DB.prepare(
       "SELECT v.*, vm.role FROM vaults v JOIN vault_members vm ON v.id = vm.vault_id WHERE vm.user_id = ?"
     ).bind(user.id).all();
 
-    return Response.json({ success: true, token, userId: user.id, vaults });
+    return Response.json({ 
+      success: true, 
+      token, 
+      userId: user.id, 
+      isAdmin: fullUser.is_admin === 1,
+      vaults 
+    });
   } catch (e: any) {
     return Response.json({ error: `Server Error: ${e.message}` }, { status: 500 });
   }

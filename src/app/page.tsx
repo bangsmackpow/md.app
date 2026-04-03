@@ -82,6 +82,7 @@ export default function MdApp() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [activeVaultId, setActiveVaultId] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -173,6 +174,8 @@ export default function MdApp() {
 
     if (value) {
       setAuthToken(value);
+      const { value: adminVal } = await Preferences.get({ key: 'is_admin' });
+      setIsAdmin(adminVal === 'true');
       try {
         const res = await fetch('/api/vaults', { headers: { 'Authorization': `Bearer ${value}` } });
         if (res.ok) {
@@ -207,7 +210,9 @@ export default function MdApp() {
       const data = await res.json() as any;
       if (res.ok && data.token) {
         await Preferences.set({ key: 'auth_token', value: data.token });
+        await Preferences.set({ key: 'is_admin', value: data.isAdmin ? 'true' : 'false' });
         setAuthToken(data.token);
+        setIsAdmin(!!data.isAdmin);
         setVaults(data.vaults || []);
         if (data.vaults?.length > 0) setActiveVaultId(data.vaults[0].id);
         setView("list");
@@ -556,6 +561,12 @@ export default function MdApp() {
                     <div className="space-y-4">
                       <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Account</h2>
                       <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between"><div className="text-sm font-bold truncate">{userEmail}</div><button onClick={handleLogout} className="text-[10px] font-black text-red-500 uppercase">Sign Out</button></div>
+                      {isAdmin && (
+                        <button onClick={() => window.location.replace("/admin")} className="w-full flex items-center justify-between p-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">
+                          <span>Admin Portal</span>
+                          <Shield size={16} />
+                        </button>
+                      )}
                     </div>
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                       <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Collaborate</h2>
