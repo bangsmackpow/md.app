@@ -109,6 +109,12 @@ export default function MdApp() {
   const [revisions, setRevisions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
+  // E2EE State
+  const [activeVaultKey, setActiveVaultKey] = useState<CryptoKey | null>(null);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [vaultPassphrase, setVaultPassphrase] = useState("");
+  const [isEncrypting, setIsEncrypting] = useState(false);
+
   // Templates
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showTemplatePicker, setShowTemplateModal] = useState(false);
@@ -401,7 +407,6 @@ export default function MdApp() {
   useEffect(() => {
     setMounted(true);
     loadAuth();
-    loadNotes();
     loadConfig();
     loadTemplates();
     checkForUpdates();
@@ -415,7 +420,16 @@ export default function MdApp() {
       // In a real app we'd parse the URL and open the file
       console.log('App opened with URL:', data.url);
     });
-  }, [loadAuth, loadNotes, loadConfig, loadTemplates, checkForUpdates]);
+  }, [loadAuth, loadConfig, loadTemplates, checkForUpdates]);
+
+  // Vault-level initialization
+  useEffect(() => {
+    if (activeVault?.encryption_enabled && !activeVaultKey) {
+      setShowUnlockModal(true);
+    } else {
+      loadNotes();
+    }
+  }, [activeVaultId, activeVault, activeVaultKey, loadNotes]);
 
   const syncToCloud = useCallback(async (name: string, body: string) => {
     if (!r2Config.accessKey || !r2Config.endpoint) return;
@@ -432,19 +446,26 @@ export default function MdApp() {
 
   const saveNote = useCallback(async (overrideContent?: string) => {
     if (!fileName || !activeVaultId || !authToken) return;
-    const contentToSave = overrideContent !== undefined ? overrideContent : content;
+    const plainContent = overrideContent !== undefined ? overrideContent : content;
+    
+    let contentToSave = plainContent;
+    if (activeVault?.encryption_enabled && activeVaultKey) {
+      const encrypted = await encryptText(plainContent, activeVaultKey);
+      contentToSave = JSON.stringify(encrypted);
+    }
+
     await storage.writeNote(fileName, contentToSave);
-    const h1Line = contentToSave.split('\n').find(l => l.startsWith('# '));
+    const h1Line = plainContent.split('\n').find(l => l.startsWith('# '));
     const title = h1Line ? h1Line.replace('# ', '').trim() : fileName;
-    const tags = Array.from(contentToSave.matchAll(/#(\w+)/g)).map(m => m[1]);
-    const snippet = contentToSave.replace(/^# .*\n?/, '').substring(0, 100).trim();
+    const tags = Array.from(plainContent.matchAll(/#(\w+)/g)).map(m => m[1]);
+    const snippet = plainContent.replace(/^# .*\n?/, '').substring(0, 100).trim();
     await indexer.updateNote({ 
       id: fileName, 
       title, 
       tags: [...new Set(tags)], 
       lastModified: Date.now(), 
       snippet,
-      content: contentToSave.substring(0, 10000)
+      content: plainContent.substring(0, 10000)
     });
     loadNotes();
     setIsDirty(false);
@@ -458,7 +479,7 @@ export default function MdApp() {
         body: JSON.stringify({ noteId: fileName, content: contentToSave })
       });
     } catch (e) {}
-  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, syncToCloud]);
+  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, syncToCloud, activeVault, activeVaultKey]);
 
   // AUTOSAVE every 30s
   useEffect(() => {
@@ -518,6 +539,22 @@ export default function MdApp() {
     }
   };
 
+  const loadNoteContent = async (id: string) => {
+    const raw = await storage.readNote(id);
+    if (activeVault?.encryption_enabled && activeVaultKey) {
+      try {
+        const encrypted = JSON.parse(raw) as EncryptedData;
+        if (encrypted.iv && encrypted.ciphertext) {
+          return await decryptText(encrypted, activeVaultKey);
+        }
+      } catch (e) {
+        // Fallback to raw if not valid JSON or encryption data
+        return raw;
+      }
+    }
+    return raw;
+  };
+
   const deleteNote = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (typeof window !== 'undefined' && !window.confirm(`Delete ${id}?`)) return;
@@ -553,6 +590,37 @@ export default function MdApp() {
         setView("list");
       }
     } catch (e) { console.error("Save settings failed"); } finally { setSyncStatus("idle"); }
+  };
+
+  const handleEnableEncryption = async () => {
+    const pass = window.prompt("Enter a strong passphrase for this vault. (WARNING: Lost passphrases cannot be recovered!)");
+    if (!pass) return;
+    
+    setIsEncrypting(true);
+    try {
+      const salt = generateSalt();
+      const key = await deriveVaultKey(pass, salt);
+      
+      const res = await fetch(`/api/vaults?id=${activeVaultId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ...activeVault, 
+          encryption_enabled: 1, 
+          encryption_salt: salt 
+        })
+      });
+
+      if (res.ok) {
+        setActiveVaultKey(key);
+        setVaults(prev => prev.map(v => v.id === activeVaultId ? { ...v, encryption_enabled: 1, encryption_salt: salt } : v));
+        alert("Encryption enabled! Your next save will be encrypted.");
+      }
+    } catch (e) {
+      alert("Failed to enable encryption");
+    } finally {
+      setIsEncrypting(false);
+    }
   };
 
   const manualSyncAll = useCallback(async () => {
@@ -676,6 +744,23 @@ export default function MdApp() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape" && view === "editor") {
       setView("list");
+    }
+  };
+
+  const handleUnlockVault = async () => {
+    if (!vaultPassphrase || !activeVault?.encryption_salt) return;
+    setIsEncrypting(true);
+    try {
+      const key = await deriveVaultKey(vaultPassphrase, activeVault.encryption_salt);
+      setActiveVaultKey(key);
+      setShowUnlockModal(false);
+      setVaultPassphrase("");
+      // Reload notes with the new key
+      loadNotes();
+    } catch (e) {
+      alert("Invalid passphrase");
+    } finally {
+      setIsEncrypting(false);
     }
   };
 
@@ -844,7 +929,7 @@ export default function MdApp() {
                   <div className="flex-1 overflow-y-auto p-6 pt-0 space-y-3">
                     <button onClick={() => { setFileName(`${activeFolder ? activeFolder+'/' : ''}note-${Date.now()}`); setContent(""); setView("editor"); }} className="w-full p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl flex items-center justify-center gap-2 text-zinc-400 font-bold uppercase text-xs tracking-widest hover:border-blue-500 hover:text-blue-500 transition-all"><Plus size={18} /> New Entry</button>
                     {filteredNotes.map(note => (
-                      <div key={note.id} onClick={() => { setFileName(note.id); setContent(""); setView("editor"); storage.readNote(note.id).then(c => setContent(c)); }} className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col gap-1 active:scale-[0.99] transition-all hover:shadow-md cursor-pointer group">
+                      <div key={note.id} onClick={async () => { setFileName(note.id); setContent(""); setView("editor"); const c = await loadNoteContent(note.id); setContent(c); }} className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col gap-1 active:scale-[0.99] transition-all hover:shadow-md cursor-pointer group">
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg text-zinc-400 group-hover:text-blue-500 transition-colors"><FileText size={20} /></div>
                           <span className="font-bold flex-1 truncate text-sm">{note.title}</span>
@@ -993,6 +1078,26 @@ export default function MdApp() {
 
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                       <div className="flex items-center justify-between">
+                        <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Security</h2>
+                        {activeVault?.encryption_enabled ? (
+                          <span className="flex items-center gap-1.5 text-[10px] font-black text-green-500 uppercase">
+                            <Shield size={12} /> E2EE Enabled
+                          </span>
+                        ) : (
+                          <button onClick={handleEnableEncryption} className="text-[10px] font-black text-blue-500 uppercase flex items-center gap-1 hover:underline">
+                            <Lock size={12} /> Enable E2EE
+                          </button>
+                        )}
+                      </div>
+                      {activeVault?.encryption_enabled && (
+                        <p className="text-[10px] text-zinc-500 font-bold leading-relaxed">
+                          Content in this vault is encrypted on your device. Only you have the key.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                      <div className="flex items-center justify-between">
                         <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Templates</h2>
                         <button onClick={addTemplate} className="text-[10px] font-black text-blue-500 uppercase flex items-center gap-1"><Plus size={12} /> Save Current as Template</button>
                       </div>
@@ -1082,6 +1187,48 @@ export default function MdApp() {
                         className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" 
                       />
                       <button onClick={handleShareNote} className="w-full py-4 bg-blue-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Send Note</button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence>
+              {showUnlockModal && (
+                <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
+                  <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[3rem] w-full max-w-sm shadow-2xl overflow-hidden">
+                    <div className="p-10 text-center space-y-6">
+                      <div className="mx-auto w-20 h-20 bg-blue-500/10 rounded-3xl flex items-center justify-center text-blue-500">
+                        <Lock size={40} />
+                      </div>
+                      <div className="space-y-2">
+                        <h2 className="text-3xl font-black tracking-tight italic">Vault Locked</h2>
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-relaxed">
+                          This vault is protected with End-to-End Encryption.<br/>Enter your passphrase to decrypt your notes.
+                        </p>
+                      </div>
+                      <div className="space-y-4">
+                        <input 
+                          type="password" 
+                          value={vaultPassphrase} 
+                          onChange={(e) => setVaultPassphrase(e.target.value)} 
+                          onKeyDown={(e) => e.key === 'Enter' && handleUnlockVault()}
+                          placeholder="Passphrase" 
+                          className="w-full p-5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl text-center text-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold" 
+                        />
+                        <button 
+                          onClick={handleUnlockVault} 
+                          disabled={isEncrypting}
+                          className="w-full py-5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase text-xs tracking-widest rounded-3xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        >
+                          {isEncrypting ? "Decrypting..." : "Unlock Vault"}
+                        </button>
+                        <button 
+                          onClick={() => { setActiveVaultId(vaults[0]?.id || null); setShowUnlockModal(false); }}
+                          className="w-full py-2 text-zinc-400 font-black uppercase text-[9px] tracking-widest"
+                        >
+                          Cancel & Switch Vault
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 </div>
