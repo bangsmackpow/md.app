@@ -996,11 +996,12 @@ export default function MdApp() {
                           </AnimatePresence>
                         </div>
                       ) : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown 
+  sourcePos={true}
   remarkPlugins={[remarkGfm]} 
   components={{ 
     li: ({node, children, ...props}) => {
       // Check if this list item is a task list item
-      const isTask = node?.children?.some((c: any) => c.type === 'element' && (c as any).tagName === 'input' && (c as any).properties?.type === 'checkbox');
+      const isTask = (node as any)?.checked !== null && (node as any)?.checked !== undefined;
       if (isTask) {
         return (
           <li className="flex items-start gap-2 list-none -ml-6" data-line={(node as any)?.position?.start.line}>
@@ -1017,12 +1018,13 @@ export default function MdApp() {
           <input 
             {...props} 
             disabled={false}
-            className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0" 
+            className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0 appearance-none border-2 checked:bg-blue-500 checked:border-blue-500 relative before:content-[''] before:absolute before:inset-0 before:flex before:items-center before:justify-center before:text-white checked:before:content-['✓'] before:text-[10px] before:font-bold" 
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               if (line) toggleCheckboxItem(line);
             }}
-            onChange={() => {}} // Dummy to prevent React warning
+            readOnly
           />
         );
       }
