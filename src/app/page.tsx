@@ -258,9 +258,8 @@ export default function MdApp() {
     try {
       let apiBase = 'https://markdownapp.pages.dev';
       
-      // Only use relative paths if we're in a standard web browser on the same domain
-      // Capacitor usually runs on localhost or a custom scheme, so we should use the full URL
-      if (typeof window !== 'undefined' && 
+      // If we are NOT on a native platform (Android/iOS) AND NOT on localhost, we use relative paths
+      if (!Capacitor.isNativePlatform() && 
           window.location.hostname !== 'localhost' && 
           !window.location.hostname.includes('127.0.0.1')) {
         apiBase = ''; 
