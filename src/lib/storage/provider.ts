@@ -4,6 +4,7 @@ export interface NoteFile {
 }
 
 export interface StorageProvider {
+  setVault(vaultId: string): void;
   listNotes(): Promise<NoteFile[]>;
   readNote(name: string): Promise<string>;
   writeNote(name: string, content: string): Promise<void>;

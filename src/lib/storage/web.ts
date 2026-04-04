@@ -3,6 +3,10 @@ import { StorageProvider, NoteFile } from './provider';
 export class WebStorageProvider implements StorageProvider {
   private prefix = 'md-app-note:';
 
+  setVault(vaultId: string): void {
+    this.prefix = `md-app-note:${vaultId}:`;
+  }
+
   async listNotes(): Promise<NoteFile[]> {
     const notes: NoteFile[] = [];
     for (let i = 0; i < localStorage.length; i++) {

@@ -4,6 +4,10 @@ import { Capacitor } from '@capacitor/core';
 
 export class CapacitorStorageProvider implements StorageProvider {
   private baseDir = 'md-app';
+
+  setVault(vaultId: string): void {
+    this.baseDir = `md-app/${vaultId}`;
+  }
   
   // On Android, use External Storage to survive app uninstallation.
   // On iOS, Documents is the standard persistent location.

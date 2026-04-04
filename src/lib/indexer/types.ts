@@ -8,6 +8,7 @@ export interface NoteMetadata {
 }
 
 export interface IndexProvider {
+  setVault(vaultId: string): void;
   getNotes(): Promise<NoteMetadata[]>;
   updateNote(metadata: NoteMetadata): Promise<void>;
   deleteNote(id: string): Promise<void>;

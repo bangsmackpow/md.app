@@ -3,6 +3,10 @@ import { IndexProvider, NoteMetadata } from './types';
 export class JsonIndexProvider implements IndexProvider {
   private storageKey = 'md-app-index';
 
+  setVault(vaultId: string): void {
+    this.storageKey = `md-app-index:${vaultId}`;
+  }
+
   async getNotes(): Promise<NoteMetadata[]> {
     const raw = localStorage.getItem(this.storageKey);
     if (!raw) return [];

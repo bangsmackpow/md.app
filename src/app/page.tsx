@@ -428,12 +428,17 @@ export default function MdApp() {
 
   // Vault-level initialization
   useEffect(() => {
+    if (activeVaultId) {
+      storage.setVault(activeVaultId);
+      indexer.setVault(activeVaultId);
+    }
+    
     if (activeVault?.encryption_enabled && !activeVaultKey) {
       setShowUnlockModal(true);
     } else {
       loadNotes();
     }
-  }, [activeVaultId, activeVault, activeVaultKey, loadNotes]);
+  }, [activeVaultId, activeVault, activeVaultKey, loadNotes, storage, indexer]);
 
   const syncToCloud = useCallback(async (name: string, body: string) => {
     if (!r2Config.accessKey || !r2Config.endpoint) return;
