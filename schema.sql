@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS vaults (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     owner_id TEXT NOT NULL,
+    encryption_enabled INTEGER DEFAULT 0,
+    encryption_salt TEXT,
     r2_endpoint TEXT,
     r2_access_key TEXT,
     r2_secret_key TEXT,

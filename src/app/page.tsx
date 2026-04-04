@@ -35,6 +35,9 @@ import versionData from "../../public/version.json";
 // Polyfills
 import { Buffer } from "buffer";
 
+// Crypto
+import { deriveVaultKey, encryptText, decryptText, generateSalt, EncryptedData } from "@/lib/crypto";
+
 type ViewState = "list" | "editor" | "settings" | "auth";
 
 interface SlashCommand {
