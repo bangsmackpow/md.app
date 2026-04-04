@@ -14,12 +14,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   if (!session) return Response.json({ error: "Invalid session" }, { status: 401 });
 
-  // List all vaults I have access to
-  const { results } = await env.DB.prepare(
-    "SELECT v.*, vm.role FROM vaults v JOIN vault_members vm ON v.id = vm.vault_id WHERE vm.user_id = ?"
-  ).bind(session.user_id).all();
-  
-  return Response.json(results);
+  try {
+    // List all vaults I have access to
+    const { results } = await env.DB.prepare(
+      "SELECT v.*, vm.role FROM vaults v JOIN vault_members vm ON v.id = vm.vault_id WHERE vm.user_id = ?"
+    ).bind(session.user_id).all();
+    
+    return Response.json(results);
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {

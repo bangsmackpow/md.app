@@ -30,8 +30,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const adminId = await getAdminUser(request, env);
   if (!adminId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { results: users } = await env.DB.prepare("SELECT id, email, is_admin, status, force_password_change, two_factor_enabled, storage_quota_mb, current_usage_bytes, created_at, last_login FROM users").all();
-  return Response.json(users);
+  try {
+    const { results: users } = await env.DB.prepare("SELECT id, email, is_admin, status, force_password_change, two_factor_enabled, storage_quota_mb, current_usage_bytes, created_at, last_login FROM users").all();
+    return Response.json(users);
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
 };
 
 export const onRequestPut: PagesFunction<Env> = async (context) => {
