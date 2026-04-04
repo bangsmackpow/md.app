@@ -9,7 +9,7 @@ import {
   FileText, Trash2, CheckSquare, Heading, 
   Type, Settings, Share, X, Cloud, CloudOff,
   List, ListOrdered, Minus, Code, Bold, Italic, Link as LinkIcon, Image as ImageIcon,
-  Folder, History, UserPlus, LogOut, Database, MoreVertical, Shield, Key
+  Folder, History, UserPlus, LogOut, Database, MoreVertical, Shield, Key, Layout
 } from "lucide-react";
 
 // Storage & Indexing & Sync
@@ -26,6 +26,7 @@ import { languages } from '@codemirror/language-data';
 import { Preferences } from '@capacitor/preferences';
 import { Share as CapShare } from '@capacitor/share';
 import { Browser } from '@capacitor/browser';
+import { App } from '@capacitor/app';
 
 // Update Service
 import { checkUpdates, GitHubRelease } from "@/lib/update";
@@ -52,6 +53,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'code', label: 'Code Block', icon: <Code size={18} className="text-amber-500" />, snippet: '```\n\n```', description: 'Insert a code block' },
   { id: 'bold', label: 'Bold', icon: <Bold size={18} className="font-bold" />, snippet: '**text**', description: 'Make text bold' },
   { id: 'link', label: 'Link', icon: <LinkIcon size={18} className="text-blue-400" />, snippet: '[title](url)', description: 'Insert a link' },
+  { id: 'template', label: 'Template', icon: <Layout size={18} className="text-emerald-500" />, snippet: '/template', description: 'Insert a saved template' },
 ];
 
 interface Vault {
@@ -62,6 +64,12 @@ interface Vault {
   r2_secret_key?: string;
   r2_bucket?: string;
   role: 'owner' | 'editor' | 'viewer';
+}
+
+interface Template {
+  id: string;
+  name: string;
+  content: string;
 }
 
 export default function MdApp() {
@@ -96,6 +104,10 @@ export default function MdApp() {
   const [isDirty, setIsDirty] = useState(false);
   const [revisions, setRevisions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+
+  // Templates
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [showTemplatePicker, setShowTemplateModal] = useState(false);
 
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashSearch, setSlashSearch] = useState("");
@@ -163,6 +175,21 @@ export default function MdApp() {
   }, [notes, searchQuery, activeFolder]);
 
   const editorRef = React.useRef<any>(null);
+
+  const loadTemplates = useCallback(async () => {
+    const { value } = await Preferences.get({ key: 'templates' });
+    if (value) {
+      setTemplates(JSON.parse(value));
+    } else {
+      // Default templates
+      const defaults = [
+        { id: 'daily', name: 'Daily Note', content: '# Daily Log: ' + new Date().toLocaleDateString() + '\n\n## Tasks\n- [ ] \n\n## Journal\n' },
+        { id: 'meeting', name: 'Meeting Notes', content: '# Meeting: \nDate: ' + new Date().toLocaleDateString() + '\nAttendees: \n\n## Agenda\n\n## Notes\n\n## Action Items\n- [ ] ' }
+      ];
+      setTemplates(defaults);
+      await Preferences.set({ key: 'templates', value: JSON.stringify(defaults) });
+    }
+  }, []);
 
   const loadAuth = useCallback(async () => {
     if (typeof window === 'undefined') return;
@@ -289,12 +316,19 @@ export default function MdApp() {
     loadAuth();
     loadNotes();
     loadConfig();
+    loadTemplates();
     checkForUpdates();
     if (typeof window !== "undefined") {
       setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
       (window as any).Buffer = Buffer;
     }
-  }, [loadAuth, loadNotes, loadConfig, checkForUpdates]);
+
+    // Handle incoming file intents
+    App.addListener('appUrlOpen', async (data: any) => {
+      // In a real app we'd parse the URL and open the file
+      console.log('App opened with URL:', data.url);
+    });
+  }, [loadAuth, loadNotes, loadConfig, loadTemplates, checkForUpdates]);
 
   const syncToCloud = useCallback(async (name: string, body: string) => {
     if (!r2Config.accessKey || !r2Config.endpoint) return;
@@ -456,6 +490,12 @@ export default function MdApp() {
   }, [indexer, storage, sync, r2Config, loadNotes]);
 
   const insertMarkdownSnippet = useCallback((snippet: string) => {
+    if (snippet === '/template') {
+      setShowTemplateModal(true);
+      setShowSlashMenu(false);
+      return;
+    }
+
     if (editorRef.current) {
       const view = editorRef.current;
       const { state } = view;
@@ -471,6 +511,9 @@ export default function MdApp() {
     setSlashSearch("");
   }, []);
 
+  const [showWikiMenu, setShowWikiMenu] = useState(false);
+  const [wikiSearch, setWikiSearch] = useState("");
+
   const handleEditorValueChange = useCallback((value: string, viewUpdate: any) => {
     setContent(value);
     setIsDirty(true);
@@ -479,6 +522,19 @@ export default function MdApp() {
     if (!selection.empty) return;
     const line = state.doc.lineAt(selection.from);
     const textBefore = line.text.substring(0, selection.from - line.from);
+    
+    // Wiki-link [[ logic
+    const lastDoubleOpen = textBefore.lastIndexOf("[[");
+    if (lastDoubleOpen !== -1 && !textBefore.substring(lastDoubleOpen).includes("]]")) {
+      const query = textBefore.substring(lastDoubleOpen + 2);
+      setWikiSearch(query);
+      setShowWikiMenu(true);
+      setShowSlashMenu(false);
+      return;
+    }
+    setShowWikiMenu(false);
+
+    // Slash command / logic
     const lastSlash = textBefore.lastIndexOf("/");
     if (lastSlash !== -1) {
       const query = textBefore.substring(lastSlash + 1);
@@ -524,14 +580,72 @@ export default function MdApp() {
     const name = window.prompt("Enter folder name:");
     if (!name) return;
     const folderId = activeFolder ? `${activeFolder}/${name}` : name;
-    // To "create" a folder in this system, we just need to navigate to it or create a placeholder note
     setActiveFolder(folderId);
     setView("list");
+  };
+
+  const insertTemplate = (templateContent: string) => {
+    if (editorRef.current) {
+      const view = editorRef.current;
+      const { state } = view;
+      const selection = state.selection.main;
+      
+      // Find the slash to replace
+      const line = state.doc.lineAt(selection.from);
+      const textBefore = line.text.substring(0, selection.from - line.from);
+      const slashIndex = textBefore.lastIndexOf("/template");
+      const from = slashIndex !== -1 ? line.from + slashIndex : selection.from;
+
+      view.dispatch({ 
+        changes: { from, to: selection.to, insert: templateContent }, 
+        selection: { anchor: from + templateContent.length } 
+      });
+      view.focus();
+    }
+    setShowTemplateModal(false);
+  };
+
+  const addTemplate = async () => {
+    const name = window.prompt("Template Name:");
+    if (!name) return;
+    const newTemplate = { id: crypto.randomUUID(), name, content: content };
+    const updated = [...templates, newTemplate];
+    setTemplates(updated);
+    await Preferences.set({ key: 'templates', value: JSON.stringify(updated) });
+    alert("Template saved from current editor content!");
+  };
+
+  const deleteTemplate = async (id: string) => {
+    if (!confirm("Delete template?")) return;
+    const updated = templates.filter(t => t.id !== id);
+    setTemplates(updated);
+    await Preferences.set({ key: 'templates', value: JSON.stringify(updated) });
   };
 
   const filteredSlashCommands = SLASH_COMMANDS.filter(cmd => 
     cmd.label.toLowerCase().includes(slashSearch.toLowerCase())
   );
+
+  const filteredWikiNotes = useMemo(() => {
+    const q = wikiSearch.toLowerCase();
+    return notes.filter(n => n.title.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)).slice(0, 10);
+  }, [notes, wikiSearch]);
+
+  const insertWikiLink = (noteId: string) => {
+    if (editorRef.current) {
+      const view = editorRef.current;
+      const { state } = view;
+      const selection = state.selection.main;
+      const line = state.doc.lineAt(selection.from);
+      const textBefore = line.text.substring(0, selection.from - line.from);
+      const openIndex = textBefore.lastIndexOf("[[");
+      const from = openIndex !== -1 ? line.from + openIndex : selection.from;
+      const snippet = `[[${noteId}]]`;
+      view.dispatch({ changes: { from, to: selection.to, insert: snippet }, selection: { anchor: from + snippet.length } });
+      view.focus();
+    }
+    setShowWikiMenu(false);
+  };
 
   if (!mounted) return <div className="h-screen w-screen bg-zinc-50 dark:bg-zinc-950" />;
 
@@ -647,6 +761,23 @@ export default function MdApp() {
                               </motion.div>
                             )}
                           </AnimatePresence>
+
+                          <AnimatePresence>
+                            {showWikiMenu && (
+                              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-12 left-8 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50">
+                                <div className="p-2 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">Link to Note</div>
+                                <div className="max-h-64 overflow-y-auto p-1">
+                                  {filteredWikiNotes.map((note) => (
+                                    <button key={note.id} onClick={() => insertWikiLink(note.id)} className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-blue-500 hover:text-white transition-colors group">
+                                      <div className="p-1.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg group-hover:bg-white/20"><FileText size={16} /></div>
+                                      <div className="text-xs font-bold truncate">{note.title}</div>
+                                    </button>
+                                  ))}
+                                  {filteredWikiNotes.length === 0 && <div className="p-4 text-center text-xs text-zinc-400 font-bold uppercase italic tracking-widest">No notes found</div>}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       ) : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown 
   remarkPlugins={[remarkGfm]} 
@@ -681,7 +812,6 @@ export default function MdApp() {
       }
       return <input {...props} />;
     }
-    }
   }}
 >
   {content}
@@ -704,6 +834,23 @@ export default function MdApp() {
                         </button>
                       )}
                     </div>
+
+                    <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Templates</h2>
+                        <button onClick={addTemplate} className="text-[10px] font-black text-blue-500 uppercase flex items-center gap-1"><Plus size={12} /> Save Current as Template</button>
+                      </div>
+                      <div className="space-y-2">
+                        {templates.map(t => (
+                          <div key={t.id} className="p-4 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex items-center justify-between group">
+                            <div className="text-sm font-bold">{t.name}</div>
+                            <button onClick={() => deleteTemplate(t.id)} className="p-2 text-zinc-200 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
+                          </div>
+                        ))}
+                        {templates.length === 0 && <p className="text-xs text-zinc-400 italic">No templates configured.</p>}
+                      </div>
+                    </div>
+
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                       <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Collaborate</h2>
                       <div className="space-y-3"><input id="shareEmail" placeholder="team@example.com" className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all" /><button onClick={() => { const el = document.getElementById('shareEmail') as HTMLInputElement; handleShareVault(el.value); el.value = ''; }} className="w-full py-4 bg-blue-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"><UserPlus size={18} /> Invite Member</button></div>
@@ -731,9 +878,30 @@ export default function MdApp() {
                         <input type="password" value={passwordForm.new} onChange={(e) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
                       <div className="flex gap-4 pt-4">
-                        {!forcePasswordChange && <button onClick={() => setShowPasswordModal(false)} className="flex-1 py-4 text-zinc-500 font-black uppercase text-xs tracking-widest hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-2xl transition-all">Cancel</button>}
+                        {!forcePasswordChange && <button onClick={() => setShowPasswordModal(false)} className="flex-1 py-4 text-zinc-500 font-black uppercase text-xs tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-2xl transition-all">Cancel</button>}
                         <button onClick={handlePasswordChange} className="flex-2 px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Update</button>
                       </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {showTemplatePicker && (
+                <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden">
+                    <div className="p-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+                      <h2 className="text-2xl font-black tracking-tight italic">Choose Template</h2>
+                      <button onClick={() => setShowTemplateModal(false)}><X size={20} /></button>
+                    </div>
+                    <div className="p-4 max-h-[60vh] overflow-y-auto space-y-2">
+                      {templates.map(t => (
+                        <button key={t.id} onClick={() => insertTemplate(t.content)} className="w-full p-4 text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-blue-500 hover:text-white rounded-2xl font-bold transition-all flex items-center justify-between group">
+                          {t.name}
+                          <Layout size={16} className="text-zinc-400 group-hover:text-white" />
+                        </button>
+                      ))}
                     </div>
                   </motion.div>
                 </div>
