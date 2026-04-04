@@ -15,10 +15,6 @@ export async function deriveVaultKey(passphrase: string, saltHex: string): Promi
   const encoder = new TextEncoder();
   const passphraseBuf = encoder.encode(passphrase);
   
-  // Convert hex salt to buffer
-  const saltBuf = new Uint8Array(saltHex.match(/.{1,2}/g)!.map(byte => parseInt(part, 16)));
-  // Actually, hex match/map is a bit manual, let's use a cleaner helper if needed, 
-  // but for now, simple hex-to-uint8 conversion:
   const salt = new Uint8Array(saltHex.length / 2);
   for (let i = 0; i < saltHex.length; i += 2) {
     salt[i / 2] = parseInt(saltHex.substring(i, i + 2), 16);
