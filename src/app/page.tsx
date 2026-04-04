@@ -199,7 +199,9 @@ export default function MdApp() {
       // Default templates
       const defaults = [
         { id: 'daily', name: 'Daily Note', content: '# Daily Log: ' + new Date().toLocaleDateString() + '\n\n## Tasks\n- [ ] \n\n## Journal\n' },
-        { id: 'meeting', name: 'Meeting Notes', content: '# Meeting: \nDate: ' + new Date().toLocaleDateString() + '\nAttendees: \n\n## Agenda\n\n## Notes\n\n## Action Items\n- [ ] ' }
+        { id: 'meeting', name: 'Meeting Notes', content: '# Meeting: \nDate: ' + new Date().toLocaleDateString() + '\nAttendees: \n\n## Agenda\n\n## Notes\n\n## Action Items\n- [ ] ' },
+        { id: 'grocery', name: 'Grocery List', content: '# Grocery List: ' + new Date().toLocaleDateString() + '\n\n## Produce\n- [ ] \n\n## Dairy & Eggs\n- [ ] \n\n## Meat & Seafood\n- [ ] \n\n## Pantry\n- [ ] \n\n## Household\n- [ ] ' },
+        { id: 'project', name: 'Home Project', content: '# Project: \n\n## Overview\n\n## Budget\n- Estimated: $\n- Actual: $\n\n## Tasks\n- [ ] Plan\n- [ ] Materials\n- [ ] Execute\n\n## Notes\n' }
       ];
       setTemplates(defaults);
       await Preferences.set({ key: 'templates', value: JSON.stringify(defaults) });
