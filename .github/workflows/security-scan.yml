@@ -1,0 +1,80 @@
+name: Security Scan (Gitleaks, Trivy, Semgrep)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 1' # Run weekly on Mondays
+
+jobs:
+  security-scan:
+    name: Run Vulnerability Checks
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 1. Gitleaks: Catch secrets
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Semgrep: SAST for JS/TS/Workers
+      - name: Semgrep Scan
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: "p/javascript p/typescript p/owasp-top-10"
+          generateSarif: "1"
+          continue-on-error: true
+
+      - name: Upload Semgrep results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+        if: always()
+
+      # 3. Trivy: Dependency & FS vulnerabilities
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+        if: always()
+      
+      # 4. Supplemental NPM Audit
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+
+      - name: NPM Audit
+        run: npm audit --audit-level=high
+
+      # 5. Security Hygiene: Typecheck & Lint
+      - name: Lint & Typecheck
+        run: |
+          npm run lint
+          npm run typecheck

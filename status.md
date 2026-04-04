@@ -7,6 +7,8 @@
 - **Wiki-links (v1.1.66-68)**: Note linking with `[[` suggestions, `/link` command, and clickable navigation in Reading View.
 - **Document Sharing (Form A) (v1.1.67)**: Inbox-style document sharing between users.
 - **Android Connectivity (v1.1.68)**: Resolved API base URL issues for native Android environments and established file associations.
+- **End-to-End Encryption (E2EE) (v1.1.71)**: AES-256-GCM client-side encryption for per-vault security.
+- **CI/CD Security (v1.1.72)**: Integrated Gitleaks, Semgrep, Trivy, and security hygiene workflows.
 
 ## 🏗️ Current Work
 - **Form B Sharing (Live Share)**: Real-time collaborative editing using a presence engine. (Not yet started).

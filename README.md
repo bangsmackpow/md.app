@@ -25,6 +25,10 @@ A premium, local-first Markdown note-taking application built for mobile, web, a
 - **Zero-Config Sync**: Integrated with Cloudflare R2 for seamless cross-device parity.
 - **Platform Native**: Android recognizes `md.app` as the default handler for `.md` files, with optimized API connectivity for mobile environments.
 
+### 🛡️ Automated Security
+- **CI/CD Security Scanning**: Integrated GitHub Actions for Gitleaks (secrets), Semgrep (SAST), and Trivy (vulnerabilities).
+- **Hardened Codebase**: Strict typechecking and linting enforced on every push.
+
 ---
 
 ## ☁️ Cloud Sync Setup (S3/R2)
