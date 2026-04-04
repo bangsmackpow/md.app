@@ -1,0 +1,47 @@
+name: Build iOS
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ios/**'
+      - 'src/**'
+      - 'functions/**'
+      - 'public/**'
+      - 'next.config.ts'
+      - 'package.json'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (v22)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Build Web Assets (Next.js Export)
+        run: bun run build
+
+      - name: Capacitor Sync
+        run: bunx cap sync ios
+
+      - name: Build iOS App (Unsigned)
+        run: |
+          cd ios/App
+          xcodebuild -scheme App -workspace App.xcworkspace -configuration Release -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-archive
+          path: ios/App/build/Release-iphoneos/App.app
