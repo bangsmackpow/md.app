@@ -719,14 +719,15 @@ export default function MdApp() {
     const lines = content.split('\n');
     const targetLine = lines[lineIndex - 1];
     if (targetLine === undefined) return;
-    
+
     let newLine = targetLine;
-    if (targetLine.includes('[ ]')) {
-      newLine = targetLine.replace('[ ]', '[x]');
-    } else if (targetLine.toLowerCase().includes('[x]')) {
+    // Specifically target Markdown list items: - [ ] or * [ ] or 1. [ ]
+    if (/^\s*([-*]|\d+\.)\s*\[\s*\]/.test(targetLine)) {
+      newLine = targetLine.replace(/\[\s*\]/, '[x]');
+    } else if (/^\s*([-*]|\d+\.)\s*\[[xX]\]/.test(targetLine)) {
       newLine = targetLine.replace(/\[[xX]\]/, '[ ]');
     }
-    
+
     if (newLine !== targetLine) {
       const newLines = [...lines];
       newLines[lineIndex - 1] = newLine;
