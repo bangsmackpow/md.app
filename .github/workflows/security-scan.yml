@@ -60,15 +60,14 @@ jobs:
           sarif_file: trivy-results.sarif
         if: always()
       
-      # 4. Supplemental NPM Audit
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      # 4. Supplemental NPM Audit (using Bun for lockfile support)
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: "22"
-          cache: 'npm'
+          bun-version: latest
       
       - name: Install dependencies
-        run: npm install
+        run: bun install
 
       - name: NPM Audit
         run: npm audit --audit-level=high
@@ -76,5 +75,5 @@ jobs:
       # 5. Security Hygiene: Typecheck & Lint
       - name: Lint & Typecheck
         run: |
-          npm run lint
-          npm run typecheck
+          bun run lint
+          bun run typecheck
