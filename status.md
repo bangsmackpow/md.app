@@ -4,9 +4,9 @@
 - **Admin Portal (v1.1.57-61)**: Complete administrative suite for user governance, password management, and storage quotas.
 - **Interactive Checklists (v1.1.62-64)**: Real-time toggling of tasks in Reading View with source-file synchronization.
 - **Templates System (v1.1.65)**: Added `/template` command and settings-based template management.
-- **Wiki-links (v1.1.66)**: Note linking with `[[` suggestions and clickable navigation in Reading View.
+- **Wiki-links (v1.1.66-68)**: Note linking with `[[` suggestions, `/link` command, and clickable navigation in Reading View.
 - **Document Sharing (Form A) (v1.1.67)**: Inbox-style document sharing between users.
-- **Android File Association**: App now opens `.md` files directly from the Android filesystem.
+- **Android Connectivity (v1.1.68)**: Resolved API base URL issues for native Android environments and established file associations.
 
 ## 🏗️ Current Work
 - **Form B Sharing (Live Share)**: Real-time collaborative editing using a presence engine. (Not yet started).

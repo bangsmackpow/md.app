@@ -4,7 +4,7 @@ A premium, local-first Markdown note-taking application built for mobile, web, a
 
 ## ✨ Core Features
 
-### 🛡️ Governance & Security (New!)
+### 🛡️ Governance & Security
 - **Admin Portal**: A dedicated dashboard for managing users, updating passwords, enabling/disabling 2FA, and managing storage quotas.
 - **Audit Logging**: Every administrative action is tracked for full accountability.
 - **Force Password Reset**: Admins can mandate security updates for any account.
@@ -16,14 +16,14 @@ A premium, local-first Markdown note-taking application built for mobile, web, a
 
 ### ✍️ Professional Editor
 - **Linking & Backlinks**: Support for `[[Wiki-links]]` with an intelligent suggestion menu for linking notes and folders.
+- **Slash Commands**: Type `/` for formatting tools, `/template` to insert snippets, or `/link` to quickly link other notes.
 - **Interactive Checklists**: Toggle task items (`- [ ]`) directly in the **Reading View**—automatically updates the source file.
-- **Slash Commands**: Type `/` for formatting tools or `/template` to insert pre-defined snippets.
-- **Template System**: Configure custom templates in Settings to automate your workflow.
+- **Template System**: Configure custom templates in Settings to automate your recurring workflows.
 
 ### 🚀 Performance & Sync
 - **Local-First Architecture**: Zero-latency access with background cloud sync.
 - **Zero-Config Sync**: Integrated with Cloudflare R2 for seamless cross-device parity.
-- **Android Integration**: Native file association—Android now recognizes `md.app` as the default handler for `.md` files.
+- **Platform Native**: Android recognizes `md.app` as the default handler for `.md` files, with optimized API connectivity for mobile environments.
 
 ---
 

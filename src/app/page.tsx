@@ -53,6 +53,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'code', label: 'Code Block', icon: <Code size={18} className="text-amber-500" />, snippet: '```\n\n```', description: 'Insert a code block' },
   { id: 'bold', label: 'Bold', icon: <Bold size={18} className="font-bold" />, snippet: '**text**', description: 'Make text bold' },
   { id: 'link', label: 'Link', icon: <LinkIcon size={18} className="text-blue-400" />, snippet: '[title](url)', description: 'Insert a link' },
+  { id: 'note-link', label: 'Note Link', icon: <FileText size={18} className="text-blue-500" />, snippet: '/link', description: 'Link to another note' },
   { id: 'template', label: 'Template', icon: <Layout size={18} className="text-emerald-500" />, snippet: '/template', description: 'Insert a saved template' },
 ];
 
@@ -242,9 +243,15 @@ export default function MdApp() {
     setSyncStatus("syncing");
     setAuthError(null);
     try {
-      const apiBase = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && !window.location.port.includes('3000') 
-        ? '' 
-        : 'https://markdownapp.pages.dev';
+      let apiBase = 'https://markdownapp.pages.dev';
+      
+      // Only use relative paths if we're in a standard web browser on the same domain
+      // Capacitor usually runs on localhost or a custom scheme, so we should use the full URL
+      if (typeof window !== 'undefined' && 
+          window.location.hostname !== 'localhost' && 
+          !window.location.hostname.includes('127.0.0.1')) {
+        apiBase = ''; 
+      }
 
       const res = await fetch(`${apiBase}/api/auth/register`, {
         method: 'POST',
@@ -569,6 +576,13 @@ export default function MdApp() {
   const insertMarkdownSnippet = useCallback((snippet: string) => {
     if (snippet === '/template') {
       setShowTemplateModal(true);
+      setShowSlashMenu(false);
+      return;
+    }
+
+    if (snippet === '/link') {
+      setShowWikiMenu(true);
+      setWikiSearch("");
       setShowSlashMenu(false);
       return;
     }

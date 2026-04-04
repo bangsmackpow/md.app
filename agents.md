@@ -11,19 +11,19 @@ Welcome, agent. This is a local-first Markdown application built with Next.js an
 
 ## 🔑 Important Files
 - `src/app/page.tsx`: The primary application entry point. Contains the state machine for the UI, editor logic, and sync triggers.
-- `schema.sql`: Source of truth for the D1 database. When updating, remember to provide users with `ALTER TABLE` instructions for existing deployments.
+- `schema.sql`: Source of truth for the D1 database.
 - `src/app/admin/page.tsx`: The administrative dashboard.
 
 ## 🛠️ Key Workflows
 1.  **Saving**: Triggered manually or by 30s autosave. Updates storage, indexer, and cloud.
-2.  **Auth**: Managed via Bearer tokens stored in `@capacitor/preferences`. `is_admin` and `force_password` flags are checked on login.
-3.  **Sharing (Form A)**: Users send notes to recipient emails. The recipient sees these in their sidebar under "Shared with Me" and can "Accept" them into their own vault.
+2.  **Auth**: Managed via Bearer tokens. Note: `apiBase` in `handleRegister` is dynamically calculated to support both Web and Android (Capacitor) environments.
+3.  **Wiki-linking**: Handled via `[[` or `/link`. Suggestions are derived from the local indexer.
+4.  **Sharing (Form A)**: Document-level sharing via `functions/api/notes/share.ts`. Uses an inbox pattern where recipients must "Accept" notes.
 
 ## 🚩 Guidelines for Next Agent
-- **Styles**: Use the established "high-contrast" Zinc/Blue palette.
-- **Mobile First**: Ensure all UI elements are touch-friendly and handle safe-area insets.
-- **Performance**: Keep the editor lightweight. Use `useCallback` and `useMemo` extensively in `page.tsx` to prevent unnecessary re-renders of the CodeMirror instance.
-- **Security**: Never expose D1/R2 keys in the frontend. All sensitive ops must go through `functions/api/`.
+- **Styles**: Established "high-contrast" Zinc/Blue palette.
+- **Platform Handling**: When adding new API calls, ensure they use the dynamic `apiBase` logic to prevent Android connectivity failures.
+- **Markdown Rendering**: `react-markdown` is used with `remark-gfm`. Wiki-links are rendered via a custom `p` component processor in `page.tsx`.
 
 ## ⏭️ Immediate Next Task
-Implement **Form B Sharing (Live Share)**. This requires a presence engine (likely polling `functions/api/live/presence.ts` for now) to track active users on a note and handle real-time content merges or "Active User" indicators.
+Implement **Form B Sharing (Live Share)**. This requires a presence engine to track active users on a note and handle real-time synchronization.
