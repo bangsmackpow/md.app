@@ -68,6 +68,8 @@ interface Vault {
   r2_secret_key?: string;
   r2_bucket?: string;
   role: 'owner' | 'editor' | 'viewer';
+  encryption_enabled?: number;
+  encryption_salt?: string;
 }
 
 interface Template {
