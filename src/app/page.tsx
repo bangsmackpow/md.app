@@ -1182,7 +1182,7 @@ export default function MdApp() {
                       <button onClick={() => setShowShareNoteModal(false)}><X size={20} /></button>
                     </div>
                     <div className="p-8 space-y-4">
-                      <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Send a copy of "{fileName.split('/').pop()}" to another user.</p>
+                      <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Send a copy of &quot;{fileName.split('/').pop()}&quot; to another user.</p>
                       <input 
                         type="email" 
                         value={shareRecipientEmail} 
