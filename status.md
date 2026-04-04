@@ -22,3 +22,4 @@
 1.  **Form B (Live Share)**: WebSocket-based or polling-based presence and sync.
 2.  **Web Clipper**: Browser extension for saving content.
 3.  **Encrypted Vaults**: End-to-end encryption for specific vaults.
+4.  **Google Play Store Submission**: Sign production App Bundles (.aab) and complete store listing.
