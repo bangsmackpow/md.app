@@ -13,7 +13,7 @@ export interface GitHubRelease {
 export async function checkUpdates(currentVersion: string): Promise<GitHubRelease | null> {
   try {
     // Add cache buster to bypass GitHub API caching
-    const url = `https://api.github.com/repos/builtnetworks/md.app/releases/latest?t=${Date.now()}`;
+    const url = `https://api.github.com/repos/bangsmackpow/md.app/releases/latest?t=${Date.now()}`;
     const response = await fetch(url);
     if (!response.ok) {
       if (response.status === 403) console.warn('GitHub API rate limit reached');
