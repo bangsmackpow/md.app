@@ -26,6 +26,18 @@ CREATE TABLE IF NOT EXISTS admin_audit_logs (
     FOREIGN KEY (admin_id) REFERENCES users(id)
 );
 
+-- Document Level Sharing (Form A)
+CREATE TABLE IF NOT EXISTS shared_notes (
+    id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    note_title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT DEFAULT 'pending', -- pending, accepted, declined
+    created_at INTEGER DEFAULT (strftime('%s', 'now')),
+    FOREIGN KEY (sender_id) REFERENCES users(id)
+);
+
 -- Vaults
 CREATE TABLE IF NOT EXISTS vaults (
     id TEXT PRIMARY KEY,

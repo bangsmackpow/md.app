@@ -1,50 +1,47 @@
 # md.app
 
-A premium, local-first Markdown note-taking application built for mobile, web, and desktop. Designed by Built Networks for speed, data ownership, and a professional editing experience.
+A premium, local-first Markdown note-taking application built for mobile, web, and desktop. Designed for speed, data ownership, and professional-grade collaboration.
 
-## ✨ Premium Features
+## ✨ Core Features
 
-### 🚀 Performance & Storage
-- **Local-First Architecture**: Your notes are stored on your device first. Lightning-fast access with zero latency.
-- **Cross-Platform Sync**: Built-in support for S3-compatible storage (Cloudflare R2, AWS S3, MinIO) to keep your devices in sync.
-- **Android Persistence**: Configured to use external storage on Android, ensuring your `.md` files survive even if the app is uninstalled.
-- **Unified API**: Seamlessly switches between Capacitor Filesystem (Mobile) and LocalStorage (Web).
+### 🛡️ Governance & Security (New!)
+- **Admin Portal**: A dedicated dashboard for managing users, updating passwords, enabling/disabling 2FA, and managing storage quotas.
+- **Audit Logging**: Every administrative action is tracked for full accountability.
+- **Force Password Reset**: Admins can mandate security updates for any account.
+
+### 🤝 Advanced Sharing
+- **Vault Sharing**: Collaborate at the vault level with granular roles (Owner, Editor, Viewer).
+- **Document Sharing (Form A)**: Send specific notes directly to another user's "Shared with Me" inbox within the app.
+- **Revision History**: Track and restore previous versions of notes from the cloud.
 
 ### ✍️ Professional Editor
-- **CodeMirror 6 Engine**: A high-performance, modular editor replacing standard textareas.
-- **Searchable Slash Menu**: Type `/` to open a command palette with 13+ formatting options (Checklists, Headings, Code Blocks, etc.).
-- **Interactive Checklists**: Toggle task items (`- [ ]`) directly in the **Preview Mode** with a single click—automatically updates the source file and syncs to cloud.
-- **Metadata Indexing**: Background engine that automatically extracts titles, `#tags`, and snippets for a rich, searchable list view.
+- **Linking & Backlinks**: Support for `[[Wiki-links]]` with an intelligent suggestion menu for linking notes and folders.
+- **Interactive Checklists**: Toggle task items (`- [ ]`) directly in the **Reading View**—automatically updates the source file.
+- **Slash Commands**: Type `/` for formatting tools or `/template` to insert pre-defined snippets.
+- **Template System**: Configure custom templates in Settings to automate your workflow.
 
-### 🛠️ Effortless Configuration
-- **Credential Import**: Skip manual typing. Import your S3/R2 credentials instantly via a simple JSON file.
-- **Auto-Update Engine**: Automatically polls the GitHub Releases API. Receive a notification banner the moment a new version is ready.
+### 🚀 Performance & Sync
+- **Local-First Architecture**: Zero-latency access with background cloud sync.
+- **Zero-Config Sync**: Integrated with Cloudflare R2 for seamless cross-device parity.
+- **Android Integration**: Native file association—Android now recognizes `md.app` as the default handler for `.md` files.
 
 ---
 
 ## ☁️ Cloud Sync Setup (S3/R2)
 
-`md.app` is designed to work with any S3-compatible provider. We recommend **Cloudflare R2** for its speed and zero-egress fees.
+`md.app` works with any S3-compatible provider. We recommend **Cloudflare R2**.
 
 ### Configuration Format
-Create a file named `s3-config.json` with the following structure to import your credentials in the Settings menu:
+Import your credentials in the Settings menu using this JSON structure:
 
 ```json
 {
-  "endpoint": "https://<your-account-id>.r2.cloudflarestorage.com",
-  "accessKey": "your-access-key-id",
-  "secretKey": "your-secret-key",
-  "bucket": "your-bucket-name"
+  "endpoint": "https://<account-id>.r2.cloudflarestorage.com",
+  "accessKey": "id",
+  "secretKey": "secret",
+  "bucket": "notes"
 }
 ```
-
----
-
-## 🔄 Update Process
-
-1. **Detection**: The app checks the GitHub repository for tags newer than the current version.
-2. **Notification**: A blue "Update Available" banner appears at the top of your notes list and a dot appears on the Settings icon.
-3. **Installation**: Clicking the banner opens the GitHub Release page where you can download the latest `.apk` or view the web deployment.
 
 ---
 
@@ -53,38 +50,14 @@ Create a file named `s3-config.json` with the following structure to import your
 | Layer | Technology |
 |-------|------------|
 | **Framework** | Next.js 16 (App Router) |
-| **Language** | TypeScript 5.9 |
-| **Styling** | Tailwind CSS 4 |
-| **Mobile** | Capacitor 8 |
+| **Backend** | Cloudflare Pages Functions (Workers) |
+| **Database** | Cloudflare D1 (SQLite) |
+| **Storage** | Cloudflare R2 (S3 API) |
+| **Mobile** | Capacitor 8 (Android/iOS) |
 | **Editor** | CodeMirror 6 |
-| **Markdown** | React Markdown + remark-gfm |
-| **Cloud** | AWS SDK (S3 Client) |
-
----
-
-## 🛠️ Development
-
-### Prerequisites
-- [Bun](https://bun.sh) (Package Manager)
-- Android Studio (for Mobile builds)
-
-### Commands
-```bash
-bun install          # Install dependencies
-bun dev              # Local web development
-bun run build        # Production build
-bun lint             # Code quality check
-```
-
-### Deployment (Android)
-```bash
-bun run build        # Build Next.js
-npx cap copy         # Copy web assets to Android
-npx cap open android # Open in Android Studio
-```
 
 ---
 
 ## 📜 License
 Copyright © 2026 Built Networks. All rights reserved.
-MIT License (see source).
+MIT License.

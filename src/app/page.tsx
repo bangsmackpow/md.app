@@ -109,6 +109,11 @@ export default function MdApp() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showTemplatePicker, setShowTemplateModal] = useState(false);
 
+  // Sharing (Form A)
+  const [inboundNotes, setInboundNotes] = useState<any[]>([]);
+  const [showShareNoteModal, setShowShareNoteModal] = useState(false);
+  const [shareRecipientEmail, setShareRecipientEmail] = useState("");
+
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashSearch, setSlashSearch] = useState("");
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
@@ -292,6 +297,78 @@ export default function MdApp() {
     } catch (e) {
       alert("Error updating password");
     }
+  };
+
+  const fetchInboundNotes = useCallback(async () => {
+    if (!authToken) return;
+    try {
+      const res = await fetch('/api/notes/share', { headers: { 'Authorization': `Bearer ${authToken}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setInboundNotes(data);
+      }
+    } catch (e) {}
+  }, [authToken]);
+
+  useEffect(() => {
+    if (authToken) {
+      fetchInboundNotes();
+      const interval = setInterval(fetchInboundNotes, 60000); // Check every minute
+      return () => clearInterval(interval);
+    }
+  }, [authToken, fetchInboundNotes]);
+
+  const handleShareNote = async () => {
+    if (!shareRecipientEmail || !fileName || !authToken) return;
+    try {
+      const res = await fetch('/api/notes/share', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipientEmail: shareRecipientEmail, noteTitle: fileName.split('/').pop(), content })
+      });
+      if (res.ok) {
+        alert("Note shared successfully!");
+        setShowShareNoteModal(false);
+        setShareRecipientEmail("");
+      } else {
+        const data = await res.json();
+        alert(data.error || "Sharing failed");
+      }
+    } catch (e) { alert("Error sharing note"); }
+  };
+
+  const acceptInboundNote = async (note: any) => {
+    if (!activeVaultId) return;
+    const targetId = `shared/${note.note_title}-${Date.now()}`;
+    await storage.writeNote(targetId, note.content);
+    await indexer.updateNote({
+      id: targetId,
+      title: note.note_title,
+      tags: ['shared'],
+      lastModified: Date.now(),
+      snippet: note.content.substring(0, 100),
+      content: note.content.substring(0, 10000)
+    });
+    
+    // Notify server it's accepted (deletes from pending)
+    await fetch('/api/notes/share', {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shareId: note.id, status: 'accepted' })
+    });
+
+    setInboundNotes(prev => prev.filter(n => n.id !== note.id));
+    loadNotes();
+    navigateToNote(targetId);
+  };
+
+  const deleteInboundNote = async (shareId: string) => {
+    await fetch('/api/notes/share', {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shareId, status: 'declined' })
+    });
+    setInboundNotes(prev => prev.filter(n => n.id !== shareId));
   };
 
   const loadNotes = useCallback(async () => {
@@ -703,6 +780,29 @@ export default function MdApp() {
                     {folders.map(f => (<button key={f} onClick={() => { setActiveFolder(f); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${activeFolder === f && view === "list" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}><Folder size={18} /> {f.split('/').pop()}</button>))}
                   </div>
                 </div>
+
+                {inboundNotes.length > 0 && (
+                  <div>
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-2 mb-3">Shared with Me</h3>
+                    <div className="space-y-1">
+                      {inboundNotes.map(note => (
+                        <div key={note.id} className="p-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-500"><FileText size={14} /></div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[11px] font-black truncate">{note.note_title}</div>
+                              <div className="text-[9px] text-zinc-400 font-bold truncate">from {note.sender_email}</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <button onClick={() => acceptInboundNote(note)} className="flex-1 py-1.5 bg-blue-500 text-white text-[9px] font-black uppercase rounded-lg shadow-sm active:scale-95 transition-all">Accept</button>
+                            <button onClick={() => deleteInboundNote(note.id)} className="p-1.5 text-zinc-400 hover:text-red-500 transition-colors"><X size={14} /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="p-6 border-t border-zinc-200 dark:border-zinc-800 space-y-2">
                 <button onClick={() => setView("settings")} className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all active:scale-[0.98]"><Settings size={18} /> Settings</button>
@@ -744,6 +844,7 @@ export default function MdApp() {
                     <div className="flex items-center min-w-0"><button onClick={() => setView("list")} className="p-2 shrink-0"><ChevronLeft size={24} /></button><input value={fileName.split('/').pop()} title={fileName} readOnly className="min-w-0 bg-transparent font-bold text-sm outline-none px-1 cursor-default" /></div>
                     <div className="flex gap-0.5 items-center shrink-0 pr-2">
                       <div className="px-2">{syncStatus === "syncing" && <Cloud className="animate-pulse text-blue-500" size={18} />}{syncStatus === "success" && <Cloud className="text-green-500" size={18} />}{syncStatus === "error" && <CloudOff className="text-red-500" size={18} />}</div>
+                      <button onClick={() => setShowShareNoteModal(true)} className="p-2 text-zinc-400 hover:text-blue-500"><Share size={20} /></button>
                       <button onClick={loadHistory} className="p-2 text-zinc-400 hover:text-blue-500"><History size={20} /></button>
                       <button onClick={() => saveNote()} className={`p-2 transition-colors ${isDirty ? "text-blue-600" : "text-zinc-300"}`}><Save size={20} /></button>
                       <button onClick={() => setEditMode(editMode === "edit" ? "preview" : "edit")} className={`ml-2 p-2 rounded-xl transition-all ${editMode === "preview" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>{editMode === "edit" ? <Eye size={20} /> : <Edit3 size={20} />}</button>
@@ -940,6 +1041,30 @@ export default function MdApp() {
                           <Layout size={16} className="text-zinc-400 group-hover:text-white" />
                         </button>
                       ))}
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {showShareNoteModal && (
+                <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden">
+                    <div className="p-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+                      <h2 className="text-2xl font-black tracking-tight italic">Share Note</h2>
+                      <button onClick={() => setShowShareNoteModal(false)}><X size={20} /></button>
+                    </div>
+                    <div className="p-8 space-y-4">
+                      <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Send a copy of "{fileName.split('/').pop()}" to another user.</p>
+                      <input 
+                        type="email" 
+                        value={shareRecipientEmail} 
+                        onChange={(e) => setShareRecipientEmail(e.target.value)} 
+                        placeholder="recipient@example.com" 
+                        className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" 
+                      />
+                      <button onClick={handleShareNote} className="w-full py-4 bg-blue-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Send Note</button>
                     </div>
                   </motion.div>
                 </div>
