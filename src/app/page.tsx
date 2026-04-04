@@ -23,6 +23,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 
 // Native Plugins
+import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { Share as CapShare } from '@capacitor/share';
 import { Browser } from '@capacitor/browser';
