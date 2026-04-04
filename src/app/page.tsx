@@ -570,6 +570,15 @@ export default function MdApp() {
     }
   }, [content, saveNote]);
 
+  const navigateToNote = async (noteId: string) => {
+    setFileName(noteId);
+    setContent("");
+    setEditMode("preview");
+    setView("editor");
+    const c = await storage.readNote(noteId);
+    setContent(c);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape" && view === "editor") {
       setView("list");
@@ -811,6 +820,35 @@ export default function MdApp() {
         );
       }
       return <input {...props} />;
+    },
+    // Custom Wiki-link renderer for text segments
+    p: ({children}) => {
+      const processWikiLinks = (child: any): any => {
+        if (typeof child !== 'string') return child;
+        
+        const parts = child.split(/(\[\[.*?\]\])/g);
+        return parts.map((part, i) => {
+          if (part.startsWith('[[') && part.endsWith(']]')) {
+            const noteId = part.slice(2, -2);
+            return (
+              <button
+                key={i}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigateToNote(noteId);
+                }}
+                className="text-blue-500 hover:underline font-bold bg-blue-50 dark:bg-blue-900/20 px-1 rounded mx-0.5 inline-block"
+              >
+                {noteId.split('/').pop()}
+              </button>
+            );
+          }
+          return part;
+        });
+      };
+
+      return <p>{React.Children.map(children, processWikiLinks)}</p>;
     }
   }}
 >
