@@ -997,7 +997,6 @@ export default function MdApp() {
                           </AnimatePresence>
                         </div>
                       ) : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown 
-  sourcePos={true}
   remarkPlugins={[remarkGfm]} 
   components={{ 
     li: ({node, children, ...props}) => {
