@@ -640,65 +640,6 @@ export default function MdApp() {
     return raw;
   };
 
-  const startLiveShare = async () => {
-    if (!authToken || !fileName) return;
-    try {
-      const res = await fetch('/api/notes/live', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notePath: fileName, content })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setLiveShareId(data.shareId);
-        setIsLiveHost(true);
-        setShareMode("live");
-      }
-    } catch (e) { alert("Failed to start live share"); }
-  };
-
-  const joinLiveShare = async (id: string) => {
-    try {
-      const res = await fetch(`/api/notes/live?id=${id}`);
-      const data = await res.json();
-      if (res.ok) {
-        setFileName(data.note_path);
-        setContent(data.content);
-        setLiveShareId(data.id);
-        setIsLiveHost(false);
-        setView("editor");
-      } else { alert("Share not found"); }
-    } catch (e) { alert("Error joining share"); }
-  };
-
-  // Polling for Live Share
-  useEffect(() => {
-    if (!liveShareId) return;
-    
-    const interval = setInterval(async () => {
-      try {
-        if (isLiveHost && isDirty) {
-          // Push updates
-          await fetch('/api/notes/live', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shareId: liveShareId, content })
-          });
-          setIsDirty(false);
-        } else if (!isLiveHost) {
-          // Pull updates
-          const res = await fetch(`/api/notes/live?id=${liveShareId}`);
-          const data = await res.json();
-          if (res.ok && data.content !== content) {
-            setContent(data.content);
-          }
-        }
-      } catch (e) {}
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [liveShareId, isLiveHost, content, isDirty]);
-
   const deleteNote = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (typeof window !== 'undefined' && !window.confirm(`Delete ${id}?`)) return;
