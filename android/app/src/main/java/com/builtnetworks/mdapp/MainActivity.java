@@ -1,4 +1,4 @@
-package com.builtnetworks.app.mk;
+package com.builtnetworks.mdapp;
 
 import com.getcapacitor.BridgeActivity;
 
