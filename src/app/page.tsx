@@ -104,6 +104,53 @@ export default function MdApp() {
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [activeVaultId, setActiveVaultId] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  const migrateLegacyData = async (vaultId: string, token: string) => {
+    if (typeof window === 'undefined') return;
+    const legacyIndexRaw = localStorage.getItem('md-app-index');
+    if (!legacyIndexRaw) return;
+
+    setIsMigrating(true);
+    setSyncStatus("syncing");
+    try {
+      const legacyNotes = JSON.parse(legacyIndexRaw) as NoteMetadata[];
+      console.log(`Found ${legacyNotes.length} legacy notes. Migrating to vault ${vaultId}...`);
+
+      const legacyStorage = getStorageProvider(); 
+
+      for (const note of legacyNotes) {
+        try {
+          const content = await legacyStorage.readNote(note.id);
+          
+          // Adoption
+          await storage.writeNote(note.id, content);
+          await indexer.updateNote({ ...note, content: content.substring(0, 10000) });
+          
+          // Immediate Cloud Sync
+          await fetch(`/api/notes/sync?vaultId=${vaultId}&fileName=${encodeURIComponent(note.id)}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: content
+          });
+
+          localStorage.removeItem(`md-app-note:${note.id}.md`);
+          localStorage.removeItem(`md-app-note:${note.id}`);
+        } catch (err) {
+          console.error(`Failed to migrate note ${note.id}`, err);
+        }
+      }
+
+      localStorage.removeItem('md-app-index');
+      alert("Legacy notes migrated and synced to cloud!");
+      loadNotes();
+    } catch (e) {
+      console.error("Migration fatal error:", e);
+    } finally {
+      setIsMigrating(false);
+      setSyncStatus("idle");
+    }
+  };
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [isVaultMenuOpen, setIsVaultMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
