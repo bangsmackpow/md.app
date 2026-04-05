@@ -58,16 +58,18 @@ jobs:
           keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
         env:
-          # This tells the action to use the version pre-installed on GitHub Runners
           BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Rename Signed APK
+        run: mv ${{ steps.sign_app.outputs.signedReleaseFile }} md-app-production.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ github.token }}
-          files: ${{ steps.sign_app.outputs.signedReleaseFile }}
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          files: md-app-production.apk
+          tag_name: ${{ github.ref_name || format('v{0}', github.sha) }}
+          name: Release ${{ github.ref_name || format('v{0}', github.sha) }}
           body: "Official signed release for md.app"
           generate_release_notes: true
           draft: false
