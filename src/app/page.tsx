@@ -672,9 +672,10 @@ export default function MdApp() {
     });
     loadNotes();
     setIsDirty(false);
-    if (r2Config.accessKey) {
-      await syncToCloud(fileName, contentToSave);
-    }
+    
+    // Trigger Sync (Handles both Manual S3 and Auto R2)
+    await syncToCloud(fileName, contentToSave);
+
     try {
       await fetch(`/api/vaults/revisions?id=${activeVaultId}`, {
         method: 'POST',
