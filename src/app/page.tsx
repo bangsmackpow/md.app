@@ -121,6 +121,56 @@ export default function MdApp() {
   // Templates
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showTemplatePicker, setShowTemplateModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+
+  const exportVault = async () => {
+    if (!activeVaultId) return;
+    setSyncStatus("syncing");
+    try {
+      const allNotes = await indexer.getNotes();
+      const exportData: any[] = [];
+      for (const note of allNotes) {
+        const content = await storage.readNote(note.id);
+        exportData.push({ ...note, content });
+      }
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vault-backup-${activeVaultId}-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } catch (e) { alert("Export failed"); setSyncStatus("error"); }
+  };
+
+  const importVault = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeVaultId) return;
+    setSyncStatus("syncing");
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const data = JSON.parse(event.target?.result as string) as any[];
+        for (const item of data) {
+          await storage.writeNote(item.id, item.content);
+          await indexer.updateNote(item);
+        }
+        loadNotes();
+        alert(`Imported ${data.length} notes successfully!`);
+        setSyncStatus("success");
+        setTimeout(() => setSyncStatus("idle"), 3000);
+      };
+      reader.readAsText(file);
+    } catch (e) { alert("Import failed"); setSyncStatus("error"); }
+  };
+
+  const updateTemplate = async (id: string, newContent: string) => {
+    const updated = templates.map(t => t.id === id ? { ...t, content: newContent } : t);
+    setTemplates(updated);
+    await Preferences.set({ key: 'templates', value: JSON.stringify(updated) });
+    setEditingTemplate(null);
+  };
 
   // Sharing
   const [inboundNotes, setInboundNotes] = useState<any[]>([]);
