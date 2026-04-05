@@ -207,7 +207,13 @@ export default function MdApp() {
         { id: 'daily', name: 'Daily Note', content: '# Daily Log: ' + new Date().toLocaleDateString() + '\n\n## Tasks\n- [ ] \n\n## Journal\n' },
         { id: 'meeting', name: 'Meeting Notes', content: '# Meeting: \nDate: ' + new Date().toLocaleDateString() + '\nAttendees: \n\n## Agenda\n\n## Notes\n\n## Action Items\n- [ ] ' },
         { id: 'grocery', name: 'Grocery List', content: '# Grocery List: ' + new Date().toLocaleDateString() + '\n\n## Produce\n- [ ] \n\n## Dairy & Eggs\n- [ ] \n\n## Meat & Seafood\n- [ ] \n\n## Pantry\n- [ ] \n\n## Household\n- [ ] ' },
-        { id: 'project', name: 'Home Project', content: '# Project: \n\n## Overview\n\n## Budget\n- Estimated: $\n- Actual: $\n\n## Tasks\n- [ ] Plan\n- [ ] Materials\n- [ ] Execute\n\n## Notes\n' }
+        { id: 'project', name: 'Home Project', content: '# Project: \n\n## Overview\n\n## Budget\n- Estimated: $\n- Actual: $\n\n## Tasks\n- [ ] Plan\n- [ ] Materials\n- [ ] Execute\n\n## Notes\n' },
+        { id: 'workout', name: 'Workout Log', content: '# Workout: ' + new Date().toLocaleDateString() + '\n\n## Warmup\n- [ ] \n\n## Main Set\n- Exercise 1: \n- Exercise 2: \n\n## Cardio\n- [ ] \n\n## Notes\n' },
+        { id: 'recipe', name: 'New Recipe', content: '# Recipe: \n\n## Ingredients\n- [ ] \n\n## Instructions\n1. \n\n## Notes\n' },
+        { id: 'code', name: 'Code Snippet', content: '# Snippet: \n\n## Language: \n\n```\n\n```\n\n## Usage\n' },
+        { id: 'travel', name: 'Travel Planner', content: '# Trip: \n\n## Itinerary\n- Day 1: \n- Day 2: \n\n## Packing List\n- [ ] \n\n## Reservations\n- [ ] Flight\n- [ ] Hotel\n' },
+        { id: 'brainstorm', name: 'Brainstorming', content: '# Idea: \n\n## Problem Statement\n\n## Potential Solutions\n- \n\n## Pros/Cons\n\n## Next Steps\n- [ ] ' },
+        { id: 'review', name: 'Review (Book/Movie)', content: '# Review: \nRating: /10\n\n## Summary\n\n## Key Takeaways\n\n## Final Thoughts\n' }
       ];
       setTemplates(defaults);
       await Preferences.set({ key: 'templates', value: JSON.stringify(defaults) });
