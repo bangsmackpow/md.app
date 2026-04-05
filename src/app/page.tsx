@@ -291,7 +291,11 @@ export default function MdApp() {
       } else {
         setAuthError(data.error || "Authentication failed");
       }
-    } catch (e) { setAuthError("Auth unreachable"); } finally { setSyncStatus("idle"); }
+    } catch (e: any) { 
+      setAuthError(`Auth unreachable: ${e.message}`); 
+    } finally { 
+      setSyncStatus("idle"); 
+    }
   };
 
   const handlePasswordChange = async () => {
