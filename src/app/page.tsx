@@ -567,17 +567,38 @@ export default function MdApp() {
   }, [activeVaultId, activeVault, activeVaultKey, loadNotes, storage, indexer]);
 
   const syncToCloud = useCallback(async (name: string, body: string) => {
-    if (!r2Config.accessKey || !r2Config.endpoint) return;
-    setSyncStatus("syncing");
-    try {
-      await sync.upload(name, body, r2Config);
-      setSyncStatus("success");
-      setTimeout(() => setSyncStatus("idle"), 3000);
-    } catch (err) {
-      console.error("S3 Sync Error:", err);
-      setSyncStatus("error");
+    // 1. Manual S3/R2 Sync (if configured in Settings)
+    if (r2Config.accessKey && r2Config.endpoint) {
+      setSyncStatus("syncing");
+      try {
+        await sync.upload(name, body, r2Config);
+        setSyncStatus("success");
+        setTimeout(() => setSyncStatus("idle"), 3000);
+      } catch (err) {
+        console.error("Manual S3 Sync Error:", err);
+        setSyncStatus("error");
+      }
     }
-  }, [r2Config, sync]);
+
+    // 2. Automatic Native Project R2 Sync (Zero-Config)
+    if (authToken && activeVaultId) {
+      setSyncStatus("syncing");
+      try {
+        const res = await fetch(`/api/notes/sync?vaultId=${activeVaultId}&fileName=${encodeURIComponent(name)}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: body
+        });
+        if (res.ok) {
+          setSyncStatus("success");
+          setTimeout(() => setSyncStatus("idle"), 3000);
+        }
+      } catch (err) {
+        console.error("Auto Sync Error:", err);
+        setSyncStatus("error");
+      }
+    }
+  }, [r2Config, sync, authToken, activeVaultId]);
 
   const saveNote = useCallback(async (overrideContent?: string) => {
     if (!fileName || !activeVaultId || !authToken) return;
