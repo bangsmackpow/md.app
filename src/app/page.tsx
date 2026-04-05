@@ -1339,8 +1339,7 @@ export default function MdApp() {
                     </div>
 
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Collaborate</h2>
+                      <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Collaborate</h2>
                       <div className="space-y-3"><input id="shareEmail" placeholder="team@example.com" className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all" /><button onClick={() => { const el = document.getElementById('shareEmail') as HTMLInputElement; handleShareVault(el.value); el.value = ''; }} className="w-full py-4 bg-blue-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"><UserPlus size={18} /> Invite Member</button></div>
                       <button onClick={joinLiveShare} className="w-full py-4 border-2 border-dashed border-zinc-200 dark:border-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest rounded-2xl hover:border-blue-500 hover:text-blue-500 transition-all flex items-center justify-center gap-2"><Cloud size={16} /> Join Live Session</button>
                     </div>
