@@ -1009,11 +1009,11 @@ export default function MdApp() {
   remarkPlugins={[remarkGfm]} 
   components={{ 
     li: ({node, children, ...props}) => {
-      // Correct detection for task list item in modern react-markdown
+      // Check if it's a task list item
       const isTask = (node as any)?.checked !== null && (node as any)?.checked !== undefined;
       if (isTask) {
         return (
-          <li className="flex items-start gap-2 list-none -ml-6 relative group/item">
+          <li className="flex items-start gap-2 list-none" style={{ marginLeft: '-1.5rem' }}>
             {children}
           </li>
         );
@@ -1024,21 +1024,16 @@ export default function MdApp() {
       if (props.type === 'checkbox') {
         const line = (node as any)?.position?.start.line;
         return (
-          <div 
-            className="mt-1.5 w-4 h-4 shrink-0 flex items-center justify-center cursor-pointer"
-            onPointerUp={(e) => {
-              e.preventDefault();
+          <input 
+            type="checkbox"
+            checked={props.checked}
+            className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0" 
+            onClick={(e) => {
               e.stopPropagation();
               if (line) toggleCheckboxItem(line);
             }}
-          >
-            <input 
-              {...props} 
-              disabled={false}
-              readOnly
-              className="w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer pointer-events-none appearance-none border-2 checked:bg-blue-500 checked:border-blue-500 relative before:content-[''] before:absolute before:inset-0 before:flex before:items-center before:justify-center before:text-white checked:before:content-['✓'] before:text-[10px] before:font-bold" 
-            />
-          </div>
+            readOnly
+          />
         );
       }
       return <input {...props} />;
