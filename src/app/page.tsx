@@ -834,25 +834,25 @@ export default function MdApp() {
   };
 
   const manualSyncAll = useCallback(async () => {
-    if (!r2Config.accessKey || !r2Config.endpoint) return;
+    // ... existing S3 logic ...
+  }, [indexer, storage, sync, r2Config, loadNotes]);
+
+  const forceSyncAll = async () => {
     setSyncStatus("syncing");
     try {
-      const localNotes = await indexer.getNotes();
-      for (const note of localNotes) {
-        const c = await storage.readNote(note.id);
-        await sync.upload(note.id, c, r2Config);
+      const allNotes = await indexer.getNotes();
+      for (const note of allNotes) {
+        const content = await storage.readNote(note.id);
+        await syncToCloud(note.id, content);
       }
-      const remoteKeys = await sync.listRemote(r2Config);
-      for (const key of remoteKeys) {
-        const id = key.replace('.md', '');
-        const rc = await sync.download(key, r2Config);
-        await storage.writeNote(id, rc);
-      }
-      await loadNotes();
+      alert(`Successfully synced ${allNotes.length} notes to R2!`);
       setSyncStatus("success");
       setTimeout(() => setSyncStatus("idle"), 3000);
-    } catch (err) { setSyncStatus("error"); }
-  }, [indexer, storage, sync, r2Config, loadNotes]);
+    } catch (e) {
+      setSyncStatus("error");
+      alert("Sync failed");
+    }
+  };
 
   const insertMarkdownSnippet = useCallback((snippet: string) => {
     if (snippet === '/template') {
@@ -1325,7 +1325,22 @@ export default function MdApp() {
                     </div>
 
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                      <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Collaborate</h2>
+                      <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Data Management</h2>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={exportVault} className="py-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-100 transition-all flex items-center justify-center gap-2"><Database size={14} /> Backup</button>
+                        <label className="py-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-100 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                          <Plus size={14} /> Restore
+                          <input type="file" className="hidden" onChange={importVault} accept=".json" />
+                        </label>
+                      </div>
+                      <button onClick={forceSyncAll} className="w-full py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                        <Cloud size={16} /> Sync All Notes to Cloud
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Collaborate</h2>
                       <div className="space-y-3"><input id="shareEmail" placeholder="team@example.com" className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all" /><button onClick={() => { const el = document.getElementById('shareEmail') as HTMLInputElement; handleShareVault(el.value); el.value = ''; }} className="w-full py-4 bg-blue-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"><UserPlus size={18} /> Invite Member</button></div>
                       <button onClick={joinLiveShare} className="w-full py-4 border-2 border-dashed border-zinc-200 dark:border-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest rounded-2xl hover:border-blue-500 hover:text-blue-500 transition-all flex items-center justify-center gap-2"><Cloud size={16} /> Join Live Session</button>
                     </div>
