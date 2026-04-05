@@ -847,6 +847,7 @@ export default function MdApp() {
   }, []);
 
   const toggleCheckboxItem = useCallback((lineIndex: number) => {
+    console.log("Toggling line:", lineIndex);
     const lines = content.split('\n');
     const targetLine = lines[lineIndex - 1];
     if (targetLine === undefined) return;
