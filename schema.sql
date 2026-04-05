@@ -36,9 +36,19 @@ CREATE TABLE IF NOT EXISTS shared_notes (
     status TEXT DEFAULT 'pending', -- pending, accepted, declined
     created_at INTEGER DEFAULT (strftime('%s', 'now')),
     FOREIGN KEY (sender_id) REFERENCES users(id)
-);
+    );
 
--- Vaults
+    -- Live Collaboration (Form B)
+    CREATE TABLE IF NOT EXISTS live_shares (
+    id TEXT PRIMARY KEY,
+    host_id TEXT NOT NULL,
+    note_path TEXT NOT NULL,
+    content TEXT,
+    last_updated INTEGER DEFAULT (strftime('%s', 'now')),
+    FOREIGN KEY (host_id) REFERENCES users(id)
+    );
+
+    -- Vault Members
 CREATE TABLE IF NOT EXISTS vaults (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

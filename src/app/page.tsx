@@ -122,10 +122,13 @@ export default function MdApp() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showTemplatePicker, setShowTemplateModal] = useState(false);
 
-  // Sharing (Form A)
+  // Sharing
   const [inboundNotes, setInboundNotes] = useState<any[]>([]);
-  const [showShareNoteModal, setShowShareNoteModal] = useState(false);
+  const [showShareOptions, setShowShareOptions] = useState(false);
+  const [shareMode, setShareMode] = useState<"copy" | "live" | null>(null);
   const [shareRecipientEmail, setShareRecipientEmail] = useState("");
+  const [liveShareId, setLiveShareId] = useState<string | null>(null);
+  const [isLiveHost, setIsLiveHost] = useState(false);
 
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashSearch, setSlashSearch] = useState("");
@@ -352,7 +355,8 @@ export default function MdApp() {
       });
       if (res.ok) {
         alert("Note shared successfully!");
-        setShowShareNoteModal(false);
+        setShowShareOptions(false);
+        setShareMode(null);
         setShareRecipientEmail("");
       } else {
         const data = await res.json();
@@ -360,6 +364,68 @@ export default function MdApp() {
       }
     } catch (e) { alert("Error sharing note"); }
   };
+
+  const startLiveShare = async () => {
+    if (!authToken || !fileName) return;
+    try {
+      const res = await fetch('/api/notes/live', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notePath: fileName, content })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLiveShareId(data.shareId);
+        setIsLiveHost(true);
+        setShowShareOptions(false);
+        alert(`Live Share Started! ID: ${data.shareId}`);
+      }
+    } catch (e) { alert("Failed to start live share"); }
+  };
+
+  const joinLiveShare = async () => {
+    const id = window.prompt("Enter Live Share ID:");
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/notes/live?id=${id}`);
+      const data = await res.json();
+      if (res.ok) {
+        setFileName(data.note_path);
+        setContent(data.content);
+        setLiveShareId(data.id);
+        setIsLiveHost(false);
+        setView("editor");
+      } else { alert("Share not found"); }
+    } catch (e) { alert("Error joining share"); }
+  };
+
+  // Polling for Live Share
+  useEffect(() => {
+    if (!liveShareId) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        if (isLiveHost && isDirty) {
+          // Push updates
+          await fetch('/api/notes/live', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shareId: liveShareId, content })
+          });
+          setIsDirty(false);
+        } else if (!isLiveHost) {
+          // Pull updates
+          const res = await fetch(`/api/notes/live?id=${liveShareId}`);
+          const data = await res.json();
+          if (res.ok && data.content !== content) {
+            setContent(data.content);
+          }
+        }
+      } catch (e) {}
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [liveShareId, isLiveHost, content, isDirty]);
 
   const acceptInboundNote = async (note: any) => {
     if (!activeVaultId) return;
@@ -567,6 +633,65 @@ export default function MdApp() {
     }
     return raw;
   };
+
+  const startLiveShare = async () => {
+    if (!authToken || !fileName) return;
+    try {
+      const res = await fetch('/api/notes/live', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notePath: fileName, content })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLiveShareId(data.shareId);
+        setIsLiveHost(true);
+        setShareMode("live");
+      }
+    } catch (e) { alert("Failed to start live share"); }
+  };
+
+  const joinLiveShare = async (id: string) => {
+    try {
+      const res = await fetch(`/api/notes/live?id=${id}`);
+      const data = await res.json();
+      if (res.ok) {
+        setFileName(data.note_path);
+        setContent(data.content);
+        setLiveShareId(data.id);
+        setIsLiveHost(false);
+        setView("editor");
+      } else { alert("Share not found"); }
+    } catch (e) { alert("Error joining share"); }
+  };
+
+  // Polling for Live Share
+  useEffect(() => {
+    if (!liveShareId) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        if (isLiveHost && isDirty) {
+          // Push updates
+          await fetch('/api/notes/live', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shareId: liveShareId, content })
+          });
+          setIsDirty(false);
+        } else if (!isLiveHost) {
+          // Pull updates
+          const res = await fetch(`/api/notes/live?id=${liveShareId}`);
+          const data = await res.json();
+          if (res.ok && data.content !== content) {
+            setContent(data.content);
+          }
+        }
+      } catch (e) {}
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [liveShareId, isLiveHost, content, isDirty]);
 
   const deleteNote = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -960,7 +1085,7 @@ export default function MdApp() {
                     <div className="flex items-center min-w-0"><button onClick={() => setView("list")} className="p-2 shrink-0"><ChevronLeft size={24} /></button><input value={fileName.split('/').pop()} title={fileName} readOnly className="min-w-0 bg-transparent font-bold text-sm outline-none px-1 cursor-default" /></div>
                     <div className="flex gap-0.5 items-center shrink-0 pr-2">
                       <div className="px-2">{syncStatus === "syncing" && <Cloud className="animate-pulse text-blue-500" size={18} />}{syncStatus === "success" && <Cloud className="text-green-500" size={18} />}{syncStatus === "error" && <CloudOff className="text-red-500" size={18} />}</div>
-                      <button onClick={() => setShowShareNoteModal(true)} className="p-2 text-zinc-400 hover:text-blue-500"><Share size={20} /></button>
+                      <button onClick={() => setShowShareOptions(true)} className="p-2 text-zinc-400 hover:text-blue-500"><Share size={20} /></button>
                       <button onClick={loadHistory} className="p-2 text-zinc-400 hover:text-blue-500"><History size={20} /></button>
                       <button onClick={() => saveNote()} className={`p-2 transition-colors ${isDirty ? "text-blue-600" : "text-zinc-300"}`}><Save size={20} /></button>
                       <button onClick={() => setEditMode(editMode === "edit" ? "preview" : "edit")} className={`ml-2 p-2 rounded-xl transition-all ${editMode === "preview" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>{editMode === "edit" ? <Eye size={20} /> : <Edit3 size={20} />}</button>
@@ -1129,6 +1254,7 @@ export default function MdApp() {
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                       <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Collaborate</h2>
                       <div className="space-y-3"><input id="shareEmail" placeholder="team@example.com" className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all" /><button onClick={() => { const el = document.getElementById('shareEmail') as HTMLInputElement; handleShareVault(el.value); el.value = ''; }} className="w-full py-4 bg-blue-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"><UserPlus size={18} /> Invite Member</button></div>
+                      <button onClick={joinLiveShare} className="w-full py-4 border-2 border-dashed border-zinc-200 dark:border-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest rounded-2xl hover:border-blue-500 hover:text-blue-500 transition-all flex items-center justify-center gap-2"><Cloud size={16} /> Join Live Session</button>
                     </div>
                   </section>
                 </motion.div>
@@ -1184,23 +1310,50 @@ export default function MdApp() {
             </AnimatePresence>
 
             <AnimatePresence>
-              {showShareNoteModal && (
+              {showShareOptions && (
                 <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
                   <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden">
                     <div className="p-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
-                      <h2 className="text-2xl font-black tracking-tight italic">Share Note</h2>
-                      <button onClick={() => setShowShareNoteModal(false)}><X size={20} /></button>
+                      <h2 className="text-2xl font-black tracking-tight italic">Share Option</h2>
+                      <button onClick={() => { setShowShareOptions(false); setShareMode(null); }}><X size={20} /></button>
                     </div>
+                    
                     <div className="p-8 space-y-4">
-                      <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Send a copy of &quot;{fileName.split('/').pop()}&quot; to another user.</p>
-                      <input 
-                        type="email" 
-                        value={shareRecipientEmail} 
-                        onChange={(e) => setShareRecipientEmail(e.target.value)} 
-                        placeholder="recipient@example.com" 
-                        className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" 
-                      />
-                      <button onClick={handleShareNote} className="w-full py-4 bg-blue-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Send Note</button>
+                      {!shareMode ? (
+                        <div className="grid grid-cols-1 gap-3">
+                          <button 
+                            onClick={() => setShareMode("copy")}
+                            className="w-full p-6 bg-zinc-50 dark:bg-zinc-800 hover:bg-blue-500 hover:text-white rounded-3xl transition-all text-left group"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="p-3 bg-white dark:bg-zinc-900 rounded-2xl group-hover:bg-white/20"><Share size={20} /></div>
+                              <div><div className="font-black uppercase text-xs tracking-widest">Send a Copy</div><div className="text-[10px] opacity-70 font-bold uppercase">Static attachment to inbox</div></div>
+                            </div>
+                          </button>
+                          <button 
+                            onClick={startLiveShare}
+                            className="w-full p-6 bg-zinc-50 dark:bg-zinc-800 hover:bg-purple-500 hover:text-white rounded-3xl transition-all text-left group"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="p-3 bg-white dark:bg-zinc-900 rounded-2xl group-hover:bg-white/20"><Cloud size={20} /></div>
+                              <div><div className="font-black uppercase text-xs tracking-widest">Live Collaboration</div><div className="text-[10px] opacity-70 font-bold uppercase">Real-time active tracking</div></div>
+                            </div>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">Enter recipient email address</p>
+                          <input 
+                            type="email" 
+                            value={shareRecipientEmail} 
+                            onChange={(e) => setShareRecipientEmail(e.target.value)} 
+                            placeholder="recipient@example.com" 
+                            className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 font-bold" 
+                          />
+                          <button onClick={handleShareNote} className="w-full py-4 bg-blue-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Send Note</button>
+                          <button onClick={() => setShareMode(null)} className="w-full py-2 text-zinc-400 font-black uppercase text-[9px] tracking-widest">Back</button>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 </div>
