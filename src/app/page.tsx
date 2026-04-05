@@ -346,7 +346,10 @@ export default function MdApp() {
         if (res.ok) {
           const data = await res.json() as Vault[];
           setVaults(data);
-          if (data.length > 0) setActiveVaultId(data[0].id);
+          if (data.length > 0) {
+            setActiveVaultId(data[0].id);
+            migrateLegacyData(data[0].id, value);
+          }
           setView("list");
         } else {
           await Preferences.remove({ key: 'auth_token' });
@@ -392,7 +395,10 @@ export default function MdApp() {
         }
 
         setVaults(data.vaults || []);
-        if (data.vaults?.length > 0) setActiveVaultId(data.vaults[0].id);
+        if (data.vaults?.length > 0) {
+          setActiveVaultId(data.vaults[0].id);
+          migrateLegacyData(data.vaults[0].id, data.token);
+        }
         setView("list");
       } else {
         setAuthError(data.error || "Authentication failed");
