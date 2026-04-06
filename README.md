@@ -6,7 +6,7 @@ A premium, local-first Markdown note-taking application built for mobile, web, a
 
 ### 🛡️ Governance & Security
 - **Admin Portal**: A dedicated dashboard for managing users, updating passwords, enabling/disabling 2FA, and managing storage quotas.
-- **Audit Logging**: Every administrative action is tracked for full accountability.
+- **End-to-End Encryption (E2EE)**: Per-vault client-side encryption using AES-256-GCM.
 - **Force Password Reset**: Admins can mandate security updates for any account.
 
 ### 🤝 Advanced Sharing
@@ -17,13 +17,14 @@ A premium, local-first Markdown note-taking application built for mobile, web, a
 ### ✍️ Professional Editor
 - **Linking & Backlinks**: Support for `[[Wiki-links]]` with an intelligent suggestion menu for linking notes and folders.
 - **Slash Commands**: Type `/` for formatting tools, `/template` to insert snippets, or `/link` to quickly link other notes.
-- **Interactive Checklists**: Toggle task items (`- [ ]`) directly in the **Reading View**—automatically updates the source file.
+- **Interactive Checklists**: Toggle task items (`- [ ]`) directly in the **Reading View**—automatically updates the source file with reliable line-aware synchronization.
 - **Template System**: Configure custom templates in Settings to automate your recurring workflows.
 
 ### 🚀 Performance & Sync
 - **Local-First Architecture**: Zero-latency access with background cloud sync.
-- **Zero-Config Sync**: Integrated with Cloudflare R2 for seamless cross-device parity.
-- **Platform Native**: Android recognizes `md.app` as the default handler for `.md` files, with optimized API connectivity for mobile environments.
+- **Automated Parity**: v1.2.9 introduced `fullSyncFromCloud` ensuring your entire vault is indexed and available immediately after login.
+- **Platform Optimized**: Native mobile builds feature optimized API connectivity and platform-aware storage (Capacitor Preferences) for maximum reliability.
+- **Responsive Navigation**: Full feature parity on mobile via a modern sidebar overlay and gesture-friendly interface.
 
 ### 🛡️ Automated Security
 - **CI/CD Security Scanning**: Integrated GitHub Actions for Gitleaks (secrets), Semgrep (SAST), and Trivy (vulnerabilities).
