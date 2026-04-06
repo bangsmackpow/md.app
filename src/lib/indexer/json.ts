@@ -1,3 +1,4 @@
+import { Preferences } from '@capacitor/preferences';
 import { IndexProvider, NoteMetadata } from './types';
 
 export class JsonIndexProvider implements IndexProvider {
@@ -8,10 +9,10 @@ export class JsonIndexProvider implements IndexProvider {
   }
 
   async getNotes(): Promise<NoteMetadata[]> {
-    const raw = localStorage.getItem(this.storageKey);
-    if (!raw) return [];
+    const { value } = await Preferences.get({ key: this.storageKey });
+    if (!value) return [];
     try {
-      return JSON.parse(raw);
+      return JSON.parse(value);
     } catch (e) {
       return [];
     }
@@ -25,22 +26,22 @@ export class JsonIndexProvider implements IndexProvider {
     } else {
       notes.push(metadata);
     }
-    this.saveIndex(notes);
+    await this.saveIndex(notes);
   }
 
   async deleteNote(id: string): Promise<void> {
     const notes = await this.getNotes();
     const filtered = notes.filter(n => n.id !== id);
-    this.saveIndex(filtered);
+    await this.saveIndex(filtered);
   }
 
   async rebuildIndex(notes: { name: string; content: string; lastModified: number }[]): Promise<void> {
     const metadata: NoteMetadata[] = notes.map(n => this.parseNote(n.name, n.content, n.lastModified));
-    this.saveIndex(metadata);
+    await this.saveIndex(metadata);
   }
 
-  private saveIndex(notes: NoteMetadata[]): void {
-    localStorage.setItem(this.storageKey, JSON.stringify(notes));
+  private async saveIndex(notes: NoteMetadata[]): Promise<void> {
+    await Preferences.set({ key: this.storageKey, value: JSON.stringify(notes) });
   }
 
   private parseNote(name: string, content: string, lastModified: number): NoteMetadata {

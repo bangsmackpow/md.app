@@ -9,6 +9,8 @@ import {
   UserX, UserCheck, Key
 } from "lucide-react";
 import { Preferences } from '@capacitor/preferences';
+import { apiFetch } from "@/lib/api";
+import { Capacitor } from "@capacitor/core";
 
 interface User {
   id: string;
@@ -39,20 +41,28 @@ export default function AdminPortal() {
     storage_quota_mb: 500
   });
 
+  const handleGoBack = () => {
+    if (Capacitor.isNativePlatform()) {
+      window.location.href = "index.html"; 
+    } else {
+      window.location.replace("/");
+    }
+  };
+
   const fetchUsers = async () => {
     try {
       const { value: token } = await Preferences.get({ key: 'auth_token' });
       if (!token) {
-        window.location.replace("/");
+        handleGoBack();
         return;
       }
 
-      const res = await fetch("/api/admin/users", {
+      const res = await apiFetch("/api/admin/users", {
         headers: { "Authorization": `Bearer ${token}` }
       });
 
       if (!res.ok) {
-        if (res.status === 401) window.location.replace("/");
+        if (res.status === 401) handleGoBack();
         throw new Error("Failed to fetch users");
       }
 
@@ -86,7 +96,7 @@ export default function AdminPortal() {
     if (!editingUser) return;
     try {
       const { value: token } = await Preferences.get({ key: 'auth_token' });
-      const res = await fetch("/api/admin/users", {
+      const res = await apiFetch("/api/admin/users", {
         method: "PUT",
         headers: { 
           "Authorization": `Bearer ${token}`,
@@ -114,7 +124,7 @@ export default function AdminPortal() {
     if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
     try {
       const { value: token } = await Preferences.get({ key: 'auth_token' });
-      const res = await fetch(`/api/admin/users?id=${id}`, {
+      const res = await apiFetch(`/api/admin/users?id=${id}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -146,7 +156,7 @@ export default function AdminPortal() {
       <div className="max-w-6xl mx-auto space-y-8">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button onClick={() => window.location.replace("/")} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors">
+            <button onClick={handleGoBack} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors">
               <ChevronLeft size={24} />
             </button>
             <div>

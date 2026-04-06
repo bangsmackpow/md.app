@@ -38,6 +38,7 @@ import { Buffer } from "buffer";
 
 // Crypto
 import { deriveVaultKey, encryptText, decryptText, generateSalt, EncryptedData } from "@/lib/crypto";
+import { apiFetch } from "@/lib/api";
 
 type ViewState = "list" | "editor" | "settings" | "auth";
 
@@ -317,6 +318,10 @@ export default function MdApp() {
     }
   }, []);
 
+  const apiFetchCallback = useCallback(async (path: string, options: any = {}) => {
+    return apiFetch(path, options);
+  }, []);
+
   const loadAuth = useCallback(async () => {
     if (typeof window === 'undefined') return;
     const { value } = await Preferences.get({ key: 'auth_token' });
@@ -326,8 +331,14 @@ export default function MdApp() {
     
     if (!value && !authParam) {
       const path = window.location.pathname;
-      if (path === '/' || path === '' || path.includes('index.html')) {
-        window.location.replace('/landing');
+      // In native apps, the path is often /index.html or empty
+      const isRoot = path === '/' || path === '' || path.includes('index.html');
+      if (isRoot) {
+        if (Capacitor.isNativePlatform()) {
+          setView("auth");
+        } else {
+          window.location.replace('/landing');
+        }
         return;
       }
     }
@@ -342,7 +353,7 @@ export default function MdApp() {
         setShowPasswordModal(true);
       }
       try {
-        const res = await fetch('/api/vaults', { headers: { 'Authorization': `Bearer ${value}` } });
+        const res = await apiFetchCallback('/api/vaults', { headers: { 'Authorization': `Bearer ${value}` } });
         if (res.ok) {
           const data = await res.json() as Vault[];
           setVaults(data);
@@ -359,23 +370,14 @@ export default function MdApp() {
       } catch (e) { setView("list"); }
     } else { setView("auth"); }
     setIsAuthLoading(false);
-  }, []);
+  }, [apiFetchCallback]);
 
   const handleRegister = async () => {
     if (!userEmail || !userPassword) return;
     setSyncStatus("syncing");
     setAuthError(null);
     try {
-      let apiBase = 'https://markdownapp.pages.dev';
-      
-      // If we are NOT on a native platform (Android/iOS) AND NOT on localhost, we use relative paths
-      if (!Capacitor.isNativePlatform() && 
-          window.location.hostname !== 'localhost' && 
-          !window.location.hostname.includes('127.0.0.1')) {
-        apiBase = ''; 
-      }
-
-      const res = await fetch(`${apiBase}/api/auth/register`, {
+      const res = await apiFetch(`/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail.trim(), password: userPassword, mode: authMode })
@@ -413,7 +415,7 @@ export default function MdApp() {
   const handlePasswordChange = async () => {
     if (!passwordForm.current || !passwordForm.new || !authToken) return;
     try {
-      const res = await fetch('/api/auth/password', {
+      const res = await apiFetch('/api/auth/password', {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${authToken}`,
@@ -438,13 +440,13 @@ export default function MdApp() {
   const fetchInboundNotes = useCallback(async () => {
     if (!authToken) return;
     try {
-      const res = await fetch('/api/notes/share', { headers: { 'Authorization': `Bearer ${authToken}` } });
+      const res = await apiFetch('/api/notes/share', { headers: { 'Authorization': `Bearer ${authToken}` } });
       if (res.ok) {
         const data = await res.json();
         setInboundNotes(data);
       }
     } catch (e) {}
-  }, [authToken]);
+  }, [authToken, apiFetch]);
 
   useEffect(() => {
     if (authToken) {
@@ -457,7 +459,7 @@ export default function MdApp() {
   const handleShareNote = async () => {
     if (!shareRecipientEmail || !fileName || !authToken) return;
     try {
-      const res = await fetch('/api/notes/share', {
+      const res = await apiFetch('/api/notes/share', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipientEmail: shareRecipientEmail, noteTitle: fileName.split('/').pop(), content })
@@ -477,7 +479,7 @@ export default function MdApp() {
   const startLiveShare = async () => {
     if (!authToken || !fileName) return;
     try {
-      const res = await fetch('/api/notes/live', {
+      const res = await apiFetch('/api/notes/live', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ notePath: fileName, content })
@@ -496,7 +498,7 @@ export default function MdApp() {
     const id = window.prompt("Enter Live Share ID:");
     if (!id) return;
     try {
-      const res = await fetch(`/api/notes/live?id=${id}`);
+      const res = await apiFetch(`/api/notes/live?id=${id}`);
       const data = await res.json();
       if (res.ok) {
         setFileName(data.note_path);
@@ -516,7 +518,7 @@ export default function MdApp() {
       try {
         if (isLiveHost && isDirty) {
           // Push updates
-          await fetch('/api/notes/live', {
+          await apiFetch('/api/notes/live', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ shareId: liveShareId, content })
@@ -524,7 +526,7 @@ export default function MdApp() {
           setIsDirty(false);
         } else if (!isLiveHost) {
           // Pull updates
-          const res = await fetch(`/api/notes/live?id=${liveShareId}`);
+          const res = await apiFetch(`/api/notes/live?id=${liveShareId}`);
           const data = await res.json();
           if (res.ok && data.content !== content) {
             setContent(data.content);
@@ -534,7 +536,7 @@ export default function MdApp() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [liveShareId, isLiveHost, content, isDirty]);
+  }, [liveShareId, isLiveHost, content, isDirty, apiFetch]);
 
   const acceptInboundNote = async (note: any) => {
     if (!activeVaultId) return;
@@ -550,7 +552,7 @@ export default function MdApp() {
     });
     
     // Notify server it's accepted (deletes from pending)
-    await fetch('/api/notes/share', {
+    await apiFetch('/api/notes/share', {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ shareId: note.id, status: 'accepted' })
@@ -562,7 +564,7 @@ export default function MdApp() {
   };
 
   const deleteInboundNote = async (shareId: string) => {
-    await fetch('/api/notes/share', {
+    await apiFetch('/api/notes/share', {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ shareId, status: 'declined' })

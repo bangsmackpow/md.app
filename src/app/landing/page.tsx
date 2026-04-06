@@ -14,7 +14,7 @@ export default function LandingPage() {
           <h1 className="text-2xl font-black tracking-tighter italic">md.app</h1>
         </div>
         <div className="flex gap-4">
-          <Link href="/?auth=1" className="px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-black rounded-full hover:scale-105 active:scale-95 transition-all">
+          <Link href="./?auth=1" className="px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-black rounded-full hover:scale-105 active:scale-95 transition-all">
             Get Started
           </Link>
         </div>
@@ -44,7 +44,7 @@ export default function LandingPage() {
             transition={{ delay: 0.2 }}
             className="flex flex-wrap gap-4"
           >
-            <Link href="/?auth=1" className="px-10 py-5 bg-blue-500 text-white text-lg font-black rounded-3xl hover:bg-blue-600 active:scale-95 transition-all flex items-center gap-3">
+            <Link href="./?auth=1" className="px-10 py-5 bg-blue-500 text-white text-lg font-black rounded-3xl hover:bg-blue-600 active:scale-95 transition-all flex items-center gap-3">
               Start your Vault <ChevronRight size={20} />
             </Link>
           </motion.div>
