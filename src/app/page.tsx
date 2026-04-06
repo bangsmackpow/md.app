@@ -22,7 +22,6 @@ import CodeMirror from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { keymap } from "@codemirror/view";
-import { insertNewlineContinueMarkup } from "@codemirror/commands";
 
 // Native Plugins
 import { Capacitor } from '@capacitor/core';
@@ -109,51 +108,6 @@ export default function MdApp() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isMigrating, setIsMigrating] = useState(false);
 
-  const migrateLegacyData = async (vaultId: string, token: string) => {
-    if (typeof window === 'undefined') return;
-    const legacyIndexRaw = localStorage.getItem('md-app-index');
-    if (!legacyIndexRaw) return;
-
-    setIsMigrating(true);
-    setSyncStatus("syncing");
-    try {
-      const legacyNotes = JSON.parse(legacyIndexRaw) as NoteMetadata[];
-      console.log(`Found ${legacyNotes.length} legacy notes. Migrating to vault ${vaultId}...`);
-
-      const legacyStorage = getStorageProvider(); 
-
-      for (const note of legacyNotes) {
-        try {
-          const content = await legacyStorage.readNote(note.id);
-          
-          // Adoption
-          await storage.writeNote(note.id, content);
-          await indexer.updateNote({ ...note, content: content.substring(0, 10000) });
-          
-          // Immediate Cloud Sync
-          await fetch(`/api/notes/sync?vaultId=${vaultId}&fileName=${encodeURIComponent(note.id)}`, {
-            method: 'PUT',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: content
-          });
-
-          localStorage.removeItem(`md-app-note:${note.id}.md`);
-          localStorage.removeItem(`md-app-note:${note.id}`);
-        } catch (err) {
-          console.error(`Failed to migrate note ${note.id}`, err);
-        }
-      }
-
-      localStorage.removeItem('md-app-index');
-      alert("Legacy notes migrated and synced to cloud!");
-      loadNotes();
-    } catch (e) {
-      console.error("Migration fatal error:", e);
-    } finally {
-      setIsMigrating(false);
-      setSyncStatus("idle");
-    }
-  };
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [isVaultMenuOpen, setIsVaultMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -173,55 +127,6 @@ export default function MdApp() {
   const [showTemplatePicker, setShowTemplateModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
 
-  const exportVault = async () => {
-    if (!activeVaultId) return;
-    setSyncStatus("syncing");
-    try {
-      const allNotes = await indexer.getNotes();
-      const exportData: any[] = [];
-      for (const note of allNotes) {
-        const content = await storage.readNote(note.id);
-        exportData.push({ ...note, content });
-      }
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `vault-backup-${activeVaultId}-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      setSyncStatus("success");
-      setTimeout(() => setSyncStatus("idle"), 3000);
-    } catch (e) { alert("Export failed"); setSyncStatus("error"); }
-  };
-
-  const importVault = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeVaultId) return;
-    setSyncStatus("syncing");
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const data = JSON.parse(event.target?.result as string) as any[];
-        for (const item of data) {
-          await storage.writeNote(item.id, item.content);
-          await indexer.updateNote(item);
-        }
-        loadNotes();
-        alert(`Imported ${data.length} notes successfully!`);
-        setSyncStatus("success");
-        setTimeout(() => setSyncStatus("idle"), 3000);
-      };
-      reader.readAsText(file);
-    } catch (e) { alert("Import failed"); setSyncStatus("error"); }
-  };
-
-  const updateTemplate = async (id: string, newContent: string) => {
-    const updated = templates.map(t => t.id === id ? { ...t, content: newContent } : t);
-    setTemplates(updated);
-    await Preferences.set({ key: 'templates', value: JSON.stringify(updated) });
-    setEditingTemplate(null);
-  };
-
   // Sharing
   const [inboundNotes, setInboundNotes] = useState<any[]>([]);
   const [showShareOptions, setShowShareOptions] = useState(false);
@@ -234,24 +139,18 @@ export default function MdApp() {
   const [slashSearch, setSlashSearch] = useState("");
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
 
-  const [r2Config, setR2Config] = useState<SyncConfig>({
-    endpoint: "",
-    accessKey: "",
-    secretKey: "",
-    bucket: ""
-  });
-
   const activeVault = useMemo(() => vaults.find(v => v.id === activeVaultId), [vaults, activeVaultId]);
 
-  useEffect(() => {
+  const r2Config = useMemo(() => {
     if (activeVault && activeVault.r2_endpoint) {
-      setR2Config({
+      return {
         endpoint: activeVault.r2_endpoint,
         accessKey: activeVault.r2_access_key || "",
         secretKey: activeVault.r2_secret_key || "",
         bucket: activeVault.r2_bucket || ""
-      });
+      };
     }
+    return { endpoint: "", accessKey: "", secretKey: "", bucket: "" };
   }, [activeVault]);
 
   const storage = useMemo(() => getStorageProvider(), []);
@@ -297,28 +196,10 @@ export default function MdApp() {
 
   const editorRef = React.useRef<any>(null);
 
-  const loadTemplates = useCallback(async () => {
-    const { value } = await Preferences.get({ key: 'templates' });
-    if (value) {
-      setTemplates(JSON.parse(value));
-    } else {
-      // Default templates
-      const defaults = [
-        { id: 'daily', name: 'Daily Note', content: '# Daily Log: ' + new Date().toLocaleDateString() + '\n\n## Tasks\n- [ ] \n\n## Journal\n' },
-        { id: 'meeting', name: 'Meeting Notes', content: '# Meeting: \nDate: ' + new Date().toLocaleDateString() + '\nAttendees: \n\n## Agenda\n\n## Notes\n\n## Action Items\n- [ ] ' },
-        { id: 'grocery', name: 'Grocery List', content: '# Grocery List: ' + new Date().toLocaleDateString() + '\n\n## Produce\n- [ ] \n\n## Dairy & Eggs\n- [ ] \n\n## Meat & Seafood\n- [ ] \n\n## Pantry\n- [ ] \n\n## Household\n- [ ] ' },
-        { id: 'project', name: 'Home Project', content: '# Project: \n\n## Overview\n\n## Budget\n- Estimated: $\n- Actual: $\n\n## Tasks\n- [ ] Plan\n- [ ] Materials\n- [ ] Execute\n\n## Notes\n' },
-        { id: 'workout', name: 'Workout Log', content: '# Workout: ' + new Date().toLocaleDateString() + '\n\n## Warmup\n- [ ] \n\n## Main Set\n- Exercise 1: \n- Exercise 2: \n\n## Cardio\n- [ ] \n\n## Notes\n' },
-        { id: 'recipe', name: 'New Recipe', content: '# Recipe: \n\n## Ingredients\n- [ ] \n\n## Instructions\n1. \n\n## Notes\n' },
-        { id: 'code', name: 'Code Snippet', content: '# Snippet: \n\n## Language: \n\n```\n\n```\n\n## Usage\n' },
-        { id: 'travel', name: 'Travel Planner', content: '# Trip: \n\n## Itinerary\n- Day 1: \n- Day 2: \n\n## Packing List\n- [ ] \n\n## Reservations\n- [ ] Flight\n- [ ] Hotel\n' },
-        { id: 'brainstorm', name: 'Brainstorming', content: '# Idea: \n\n## Problem Statement\n\n## Potential Solutions\n- \n\n## Pros/Cons\n\n## Next Steps\n- [ ] ' },
-        { id: 'review', name: 'Review (Book/Movie)', content: '# Review: \nRating: /10\n\n## Summary\n\n## Key Takeaways\n\n## Final Thoughts\n' }
-      ];
-      setTemplates(defaults);
-      await Preferences.set({ key: 'templates', value: JSON.stringify(defaults) });
-    }
-  }, []);
+  const loadNotes = useCallback(async () => {
+    const result = await indexer.getNotes();
+    setNotes(result.sort((a, b) => b.lastModified - a.lastModified));
+  }, [indexer]);
 
   const apiFetchCallback = useCallback(async (path: string, options: any = {}) => {
     return apiFetch(path, options);
@@ -339,21 +220,14 @@ export default function MdApp() {
         const fileName = obj.key.replace(`${vaultId}/`, '');
         if (!fileName || fileName === '.keep') continue;
 
-        // Check if we already have this note and if it's newer locally (basic conflict avoidance)
-        // For now, cloud wins on full sync
         const noteRes = await apiFetchCallback(`/api/notes/sync?vaultId=${vaultId}&fileName=${encodeURIComponent(fileName)}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
         if (noteRes.ok) {
           const cloudContent = await noteRes.text();
-          let plainContent = cloudContent;
-          
-          // If vault is encrypted, we might need to decrypt it later for indexing, 
-          // but for now we store as is.
           await storage.writeNote(fileName, cloudContent);
           
-          // Indexing
           const h1Line = cloudContent.split('\n').find(l => l.startsWith('# '));
           const title = h1Line ? h1Line.replace('# ', '').trim() : fileName.replace('.md', '');
           const tags = Array.from(cloudContent.matchAll(/#(\w+)/g)).map(m => m[1]);
@@ -378,6 +252,47 @@ export default function MdApp() {
     }
   }, [apiFetchCallback, storage, indexer, loadNotes]);
 
+  const migrateLegacyData = async (vaultId: string, token: string) => {
+    if (typeof window === 'undefined') return;
+    const legacyIndexRaw = localStorage.getItem('md-app-index');
+    if (!legacyIndexRaw) return;
+
+    setIsMigrating(true);
+    setSyncStatus("syncing");
+    try {
+      const legacyNotes = JSON.parse(legacyIndexRaw) as NoteMetadata[];
+      const legacyStorage = getStorageProvider(); 
+
+      for (const note of legacyNotes) {
+        try {
+          const content = await legacyStorage.readNote(note.id);
+          await storage.writeNote(note.id, content);
+          await indexer.updateNote({ ...note, content: content.substring(0, 10000) });
+          
+          await fetch(`/api/notes/sync?vaultId=${vaultId}&fileName=${encodeURIComponent(note.id)}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: content
+          });
+
+          localStorage.removeItem(`md-app-note:${note.id}.md`);
+          localStorage.removeItem(`md-app-note:${note.id}`);
+        } catch (err) {
+          console.error(`Failed to migrate note ${note.id}`, err);
+        }
+      }
+
+      localStorage.removeItem('md-app-index');
+      alert("Legacy notes migrated!");
+      loadNotes();
+    } catch (e) {
+      console.error("Migration fatal error:", e);
+    } finally {
+      setIsMigrating(false);
+      setSyncStatus("idle");
+    }
+  };
+
   const loadAuth = useCallback(async () => {
     if (typeof window === 'undefined') return;
     const { value } = await Preferences.get({ key: 'auth_token' });
@@ -387,7 +302,6 @@ export default function MdApp() {
     
     if (!value && !authParam) {
       const path = window.location.pathname;
-      // In native apps, the path is often /index.html or empty
       const isRoot = path === '/' || path === '' || path.includes('index.html');
       if (isRoot) {
         if (Capacitor.isNativePlatform()) {
@@ -429,6 +343,21 @@ export default function MdApp() {
     setIsAuthLoading(false);
   }, [apiFetchCallback, fullSyncFromCloud]);
 
+  const loadTemplates = useCallback(async () => {
+    const { value } = await Preferences.get({ key: 'templates' });
+    if (value) {
+      setTemplates(JSON.parse(value));
+    } else {
+      const defaults = [
+        { id: 'daily', name: 'Daily Note', content: '# Daily Log: ' + new Date().toLocaleDateString() + '\n\n## Tasks\n- [ ] \n\n## Journal\n' },
+        { id: 'meeting', name: 'Meeting Notes', content: '# Meeting: \nDate: ' + new Date().toLocaleDateString() + '\nAttendees: \n\n## Agenda\n\n## Notes\n\n## Action Items\n- [ ] ' },
+        { id: 'grocery', name: 'Grocery List', content: '# Grocery List: ' + new Date().toLocaleDateString() + '\n\n## Produce\n- [ ] \n\n## Dairy & Eggs\n- [ ] \n\n## Meat & Seafood\n- [ ] \n\n## Pantry\n- [ ] \n\n## Household\n- [ ] ' }
+      ];
+      setTemplates(defaults);
+      await Preferences.set({ key: 'templates', value: JSON.stringify(defaults) });
+    }
+  }, []);
+
   const handleRegister = async () => {
     if (!userEmail || !userPassword) return;
     setSyncStatus("syncing");
@@ -444,15 +373,10 @@ export default function MdApp() {
         await Preferences.set({ key: 'auth_token', value: data.token });
         await Preferences.set({ key: 'is_admin', value: data.isAdmin ? 'true' : 'false' });
         await Preferences.set({ key: 'force_password', value: data.forcePasswordChange ? 'true' : 'false' });
-        
         setAuthToken(data.token);
         setIsAdmin(!!data.isAdmin);
         setForcePasswordChange(!!data.forcePasswordChange);
-        
-        if (data.forcePasswordChange) {
-          setShowPasswordModal(true);
-        }
-
+        if (data.forcePasswordChange) setShowPasswordModal(true);
         setVaults(data.vaults || []);
         if (data.vaults?.length > 0) {
           setActiveVaultId(data.vaults[0].id);
@@ -462,11 +386,7 @@ export default function MdApp() {
       } else {
         setAuthError(data.error || "Authentication failed");
       }
-    } catch (e: any) { 
-      setAuthError(`Auth unreachable: ${e.message}`); 
-    } finally { 
-      setSyncStatus("idle"); 
-    }
+    } catch (e: any) { setAuthError(`Auth unreachable: ${e.message}`); } finally { setSyncStatus("idle"); }
   };
 
   const handlePasswordChange = async () => {
@@ -474,24 +394,16 @@ export default function MdApp() {
     try {
       const res = await apiFetch('/api/auth/password', {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json' 
-        },
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword: passwordForm.current, newPassword: passwordForm.new })
       });
       if (res.ok) {
         setShowPasswordModal(false);
         setForcePasswordChange(false);
         await Preferences.remove({ key: 'force_password' });
-        alert("Password updated successfully!");
-      } else {
-        const data = await res.json() as any;
-        alert(data.error || "Failed to update password");
+        alert("Password updated!");
       }
-    } catch (e) {
-      alert("Error updating password");
-    }
+    } catch (e) { alert("Error updating password"); }
   };
 
   const fetchInboundNotes = useCallback(async () => {
@@ -503,140 +415,76 @@ export default function MdApp() {
         setInboundNotes(data);
       }
     } catch (e) {}
-  }, [authToken, apiFetch]);
+  }, [authToken]);
 
   useEffect(() => {
     if (authToken) {
       fetchInboundNotes();
-      const interval = setInterval(fetchInboundNotes, 60000); // Check every minute
+      const interval = setInterval(fetchInboundNotes, 60000);
       return () => clearInterval(interval);
     }
   }, [authToken, fetchInboundNotes]);
 
-  const handleShareNote = async () => {
-    if (!shareRecipientEmail || !fileName || !authToken) return;
-    try {
-      const res = await apiFetch('/api/notes/share', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipientEmail: shareRecipientEmail, noteTitle: fileName.split('/').pop(), content })
-      });
-      if (res.ok) {
-        alert("Note shared successfully!");
-        setShowShareOptions(false);
-        setShareMode(null);
-        setShareRecipientEmail("");
-      } else {
-        const data = await res.json();
-        alert(data.error || "Sharing failed");
-      }
-    } catch (e) { alert("Error sharing note"); }
-  };
-
-  const startLiveShare = async () => {
-    if (!authToken || !fileName) return;
-    try {
-      const res = await apiFetch('/api/notes/live', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notePath: fileName, content })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setLiveShareId(data.shareId);
-        setIsLiveHost(true);
-        setShowShareOptions(false);
-        alert(`Live Share Started! ID: ${data.shareId}`);
-      }
-    } catch (e) { alert("Failed to start live share"); }
-  };
-
-  const joinLiveShare = async () => {
-    const id = window.prompt("Enter Live Share ID:");
-    if (!id) return;
-    try {
-      const res = await apiFetch(`/api/notes/live?id=${id}`);
-      const data = await res.json();
-      if (res.ok) {
-        setFileName(data.note_path);
-        setContent(data.content);
-        setLiveShareId(data.id);
-        setIsLiveHost(false);
-        setView("editor");
-      } else { alert("Share not found"); }
-    } catch (e) { alert("Error joining share"); }
-  };
-
-  // Polling for Live Share
-  useEffect(() => {
-    if (!liveShareId) return;
-    
-    const interval = setInterval(async () => {
+  const syncToCloud = useCallback(async (name: string, body: string) => {
+    if (r2Config.accessKey && r2Config.endpoint) {
+      setSyncStatus("syncing");
       try {
-        if (isLiveHost && isDirty) {
-          // Push updates
-          await apiFetch('/api/notes/live', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shareId: liveShareId, content })
-          });
-          setIsDirty(false);
-        } else if (!isLiveHost) {
-          // Pull updates
-          const res = await apiFetch(`/api/notes/live?id=${liveShareId}`);
-          const data = await res.json();
-          if (res.ok && data.content !== content) {
-            setContent(data.content);
-          }
-        }
-      } catch (e) {}
-    }, 2000);
+        await sync.upload(name, body, r2Config);
+        setSyncStatus("success");
+        setTimeout(() => setSyncStatus("idle"), 3000);
+      } catch (err) { setSyncStatus("error"); }
+    }
+    if (authToken && activeVaultId) {
+      setSyncStatus("syncing");
+      try {
+        await fetch(`/api/notes/sync?vaultId=${activeVaultId}&fileName=${encodeURIComponent(name)}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: body
+        });
+        setSyncStatus("success");
+        setTimeout(() => setSyncStatus("idle"), 3000);
+      } catch (err) { setSyncStatus("error"); }
+    }
+  }, [r2Config, sync, authToken, activeVaultId]);
 
-    return () => clearInterval(interval);
-  }, [liveShareId, isLiveHost, content, isDirty, apiFetch]);
-
-  const acceptInboundNote = async (note: any) => {
-    if (!activeVaultId) return;
-    const targetId = `shared/${note.note_title}-${Date.now()}`;
-    await storage.writeNote(targetId, note.content);
-    await indexer.updateNote({
-      id: targetId,
-      title: note.note_title,
-      tags: ['shared'],
-      lastModified: Date.now(),
-      snippet: note.content.substring(0, 100),
-      content: note.content.substring(0, 10000)
-    });
-    
-    // Notify server it's accepted (deletes from pending)
-    await apiFetch('/api/notes/share', {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shareId: note.id, status: 'accepted' })
-    });
-
-    setInboundNotes(prev => prev.filter(n => n.id !== note.id));
+  const saveNote = useCallback(async (overrideContent?: string) => {
+    if (!fileName || !activeVaultId || !authToken) return;
+    const plainContent = overrideContent !== undefined ? overrideContent : content;
+    let contentToSave = plainContent;
+    if (activeVault?.encryption_enabled && activeVaultKey) {
+      const encrypted = await encryptText(plainContent, activeVaultKey);
+      contentToSave = JSON.stringify(encrypted);
+    }
+    await storage.writeNote(fileName, contentToSave);
+    const h1Line = plainContent.split('\n').find(l => l.startsWith('# '));
+    const title = h1Line ? h1Line.replace('# ', '').trim() : fileName;
+    const tags = Array.from(plainContent.matchAll(/#(\w+)/g)).map(m => m[1]);
+    const snippet = plainContent.replace(/^# .*\n?/, '').substring(0, 100).trim();
+    await indexer.updateNote({ id: fileName, title, tags: [...new Set(tags)], lastModified: Date.now(), snippet, content: plainContent.substring(0, 10000) });
     loadNotes();
-    navigateToNote(targetId);
-  };
+    setIsDirty(false);
+    await syncToCloud(fileName, contentToSave);
+    try {
+      await fetch(`/api/vaults/revisions?id=${activeVaultId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId: fileName, content: contentToSave })
+      });
+    } catch (e) {}
+  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, syncToCloud, activeVault, activeVaultKey]);
 
-  const deleteInboundNote = async (shareId: string) => {
-    await apiFetch('/api/notes/share', {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shareId, status: 'declined' })
-    });
-    setInboundNotes(prev => prev.filter(n => n.id !== shareId));
-  };
-
-  const loadNotes = useCallback(async () => {
-    const result = await indexer.getNotes();
-    setNotes(result.sort((a, b) => b.lastModified - a.lastModified));
-  }, [indexer]);
+  useEffect(() => {
+    if (!isDirty || !fileName) return;
+    const timer = setTimeout(() => saveNote(), 30000);
+    return () => clearTimeout(timer);
+  }, [content, isDirty, fileName, saveNote]);
 
   const loadConfig = useCallback(async () => {
     const { value } = await Preferences.get({ key: 'r2_config' });
-    if (value) setR2Config(JSON.parse(value));
+    if (value) {
+      // Logic to handle R2 config if needed locally beyond vault state
+    }
   }, []);
 
   const checkForUpdates = useCallback(async () => {
@@ -656,21 +504,14 @@ export default function MdApp() {
       setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
       (window as any).Buffer = Buffer;
     }
-
-    // Handle incoming file intents
-    App.addListener('appUrlOpen', async (data: any) => {
-      // In a real app we'd parse the URL and open the file
-      console.log('App opened with URL:', data.url);
-    });
+    App.addListener('appUrlOpen', async (data: any) => { console.log('App opened with URL:', data.url); });
   }, [loadAuth, loadConfig, loadTemplates, checkForUpdates]);
 
-  // Vault-level initialization
   useEffect(() => {
     if (activeVaultId) {
       storage.setVault(activeVaultId);
       indexer.setVault(activeVaultId);
     }
-    
     if (activeVault?.encryption_enabled && !activeVaultKey) {
       setShowUnlockModal(true);
     } else {
@@ -678,134 +519,92 @@ export default function MdApp() {
     }
   }, [activeVaultId, activeVault, activeVaultKey, loadNotes, storage, indexer]);
 
-  const syncToCloud = useCallback(async (name: string, body: string) => {
-    // 1. Manual S3/R2 Sync (if configured in Settings)
-    if (r2Config.accessKey && r2Config.endpoint) {
-      setSyncStatus("syncing");
-      try {
-        await sync.upload(name, body, r2Config);
-        setSyncStatus("success");
-        setTimeout(() => setSyncStatus("idle"), 3000);
-      } catch (err) {
-        console.error("Manual S3 Sync Error:", err);
-        setSyncStatus("error");
+  const insertMarkdownSnippet = useCallback((snippet: string) => {
+    if (snippet === '/template') { setShowTemplateModal(true); setShowSlashMenu(false); return; }
+    if (snippet === '/link') { setShowWikiMenu(true); setWikiSearch(""); setShowSlashMenu(false); return; }
+    if (editorRef.current) {
+      const view = editorRef.current;
+      const { state } = view;
+      const selection = state.selection.main;
+      const line = state.doc.lineAt(selection.from);
+      const textBefore = line.text.substring(0, selection.from - line.from);
+      const slashIndex = textBefore.lastIndexOf("/");
+      const from = slashIndex !== -1 ? line.from + slashIndex : selection.from;
+      view.dispatch({ changes: { from, to: selection.to, insert: snippet }, selection: { anchor: from + snippet.length } });
+      view.focus();
+    }
+    setShowSlashMenu(false);
+    setSlashSearch("");
+  }, []);
+
+  const [showWikiMenu, setShowWikiMenu] = useState(false);
+  const [wikiSearch, setWikiSearch] = useState("");
+
+  const handleEditorValueChange = useCallback((value: string, viewUpdate: any) => {
+    setContent(value);
+    setIsDirty(true);
+    const { state } = viewUpdate;
+    const selection = state.selection.main;
+    if (!selection.empty) return;
+    const line = state.doc.lineAt(selection.from);
+    const textBefore = line.text.substring(0, selection.from - line.from);
+    const lastDoubleOpen = textBefore.lastIndexOf("[[");
+    if (lastDoubleOpen !== -1 && !textBefore.substring(lastDoubleOpen).includes("]]")) {
+      setWikiSearch(textBefore.substring(lastDoubleOpen + 2));
+      setShowWikiMenu(true);
+      setShowSlashMenu(false);
+      return;
+    }
+    setShowWikiMenu(false);
+    const lastSlash = textBefore.lastIndexOf("/");
+    if (lastSlash !== -1) {
+      const query = textBefore.substring(lastSlash + 1);
+      const charBeforeSlash = lastSlash > 0 ? textBefore[lastSlash - 1] : " ";
+      if ((charBeforeSlash === " " || charBeforeSlash === "\n") && !query.includes(" ")) {
+        setSlashSearch(query);
+        setShowSlashMenu(true);
+        setSelectedSlashIndex(0);
+        return;
       }
     }
+    setShowSlashMenu(false);
+  }, []);
 
-    // 2. Automatic Native Project R2 Sync (Zero-Config)
-    if (authToken && activeVaultId) {
-      setSyncStatus("syncing");
-      try {
-        const res = await fetch(`/api/notes/sync?vaultId=${activeVaultId}&fileName=${encodeURIComponent(name)}`, {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${authToken}` },
-          body: body
-        });
-        if (res.ok) {
-          setSyncStatus("success");
-          setTimeout(() => setSyncStatus("idle"), 3000);
-        }
-      } catch (err) {
-        console.error("Auto Sync Error:", err);
-        setSyncStatus("error");
-      }
+  const toggleCheckboxItem = useCallback((lineIndex: number) => {
+    const lines = content.split('\n');
+    const targetLine = lines[lineIndex - 1];
+    if (targetLine === undefined) return;
+    let newLine = targetLine;
+    if (/^\s*([-*]|\d+\.)\s*\[\s*\]/.test(targetLine)) newLine = targetLine.replace(/\[\s*\]/, '[x]');
+    else if (/^\s*([-*]|\d+\.)\s*\[[xX]\]/.test(targetLine)) newLine = targetLine.replace(/\[[xX]\]/, '[ ]');
+    if (newLine !== targetLine) {
+      const newLines = [...lines];
+      newLines[lineIndex - 1] = newLine;
+      const newContent = newLines.join('\n');
+      setContent(newContent);
+      saveNote(newContent);
     }
-  }, [r2Config, sync, authToken, activeVaultId]);
+  }, [content, saveNote]);
 
-  const saveNote = useCallback(async (overrideContent?: string) => {
-    if (!fileName || !activeVaultId || !authToken) return;
-    const plainContent = overrideContent !== undefined ? overrideContent : content;
-    
-    let contentToSave = plainContent;
-    if (activeVault?.encryption_enabled && activeVaultKey) {
-      const encrypted = await encryptText(plainContent, activeVaultKey);
-      contentToSave = JSON.stringify(encrypted);
-    }
-
-    await storage.writeNote(fileName, contentToSave);
-    const h1Line = plainContent.split('\n').find(l => l.startsWith('# '));
-    const title = h1Line ? h1Line.replace('# ', '').trim() : fileName;
-    const tags = Array.from(plainContent.matchAll(/#(\w+)/g)).map(m => m[1]);
-    const snippet = plainContent.replace(/^# .*\n?/, '').substring(0, 100).trim();
-    await indexer.updateNote({ 
-      id: fileName, 
-      title, 
-      tags: [...new Set(tags)], 
-      lastModified: Date.now(), 
-      snippet,
-      content: plainContent.substring(0, 10000)
-    });
-    loadNotes();
-    setIsDirty(false);
-    
-    // Trigger Sync (Handles both Manual S3 and Auto R2)
-    await syncToCloud(fileName, contentToSave);
-
-    try {
-      await fetch(`/api/vaults/revisions?id=${activeVaultId}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ noteId: fileName, content: contentToSave })
-      });
-    } catch (e) {}
-  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, syncToCloud, activeVault, activeVaultKey]);
-
-  // AUTOSAVE every 30s
-  useEffect(() => {
-    if (!isDirty || !fileName) return;
-    const timer = setTimeout(() => saveNote(), 30000);
-    return () => clearTimeout(timer);
-  }, [content, isDirty, fileName, saveNote]);
-
-  const loadHistory = async () => {
-    if (!fileName || !authToken) return;
-    try {
-      const res = await fetch(`/api/vaults/revisions?noteId=${fileName}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-      const data = await res.json() as any[];
-      setRevisions(data);
-      setShowHistory(true);
-    } catch (e) {}
+  const navigateToNote = async (noteId: string) => {
+    setFileName(noteId);
+    setContent("");
+    setEditMode("preview");
+    setView("editor");
+    const c = await storage.readNote(noteId);
+    setContent(c);
   };
 
-  const handleShareVault = async (email: string) => {
-    if (!activeVaultId || !authToken || !email) return;
+  const handleUnlockVault = async () => {
+    if (!vaultPassphrase || !activeVault?.encryption_salt) return;
+    setIsEncrypting(true);
     try {
-      const res = await fetch('/api/vaults/share', {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, vaultId: activeVaultId })
-      });
-      if (res.ok) {
-        alert("Vault shared successfully!");
-      }
-    } catch (e) {
-      console.error("Sharing failed");
-    }
-  };
-
-  const createNewVault = async () => {
-    if (typeof window === 'undefined') return;
-    const name = window.prompt("Enter vault name:");
-    if (!name || !authToken) return;
-
-    try {
-      const res = await fetch('/api/vaults', {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name })
-      });
-      if (res.ok) {
-        loadAuth(); 
-      }
-    } catch (e) {
-      console.error("Vault creation failed");
-    }
+      const key = await deriveVaultKey(vaultPassphrase, activeVault.encryption_salt);
+      setActiveVaultKey(key);
+      setShowUnlockModal(false);
+      setVaultPassphrase("");
+      loadNotes();
+    } catch (e) { alert("Invalid passphrase"); } finally { setIsEncrypting(false); }
   };
 
   const loadNoteContent = async (id: string) => {
@@ -817,48 +616,10 @@ export default function MdApp() {
           return await decryptText(encrypted, activeVaultKey);
         }
       } catch (e) {
-        // Fallback to raw if not valid JSON or encryption data
         return raw;
       }
     }
     return raw;
-  };
-
-  const deleteNote = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (typeof window !== 'undefined' && !window.confirm(`Delete ${id}?`)) return;
-    await storage.deleteNote(id);
-    await indexer.deleteNote(id);
-    loadNotes();
-  };
-
-  const handleLogout = async () => {
-    await Preferences.remove({ key: 'auth_token' });
-    await Preferences.remove({ key: 'is_admin' });
-    await Preferences.remove({ key: 'force_password' });
-    setAuthToken(null);
-    setView("auth");
-  };
-
-  const saveSettings = async () => {
-    if (!activeVaultId || !authToken) return;
-    let endpoint = r2Config.endpoint.trim();
-    if (endpoint && !endpoint.startsWith('http')) endpoint = `https://${endpoint}`;
-    const bucketTrim = r2Config.bucket.trim();
-    if (endpoint.endsWith(`/${bucketTrim}`)) endpoint = endpoint.substring(0, endpoint.length - bucketTrim.length - 1);
-    const configToSave = { name: activeVault?.name || "My Notes", r2_endpoint: endpoint, r2_access_key: r2Config.accessKey.trim(), r2_secret_key: r2Config.secretKey.trim(), r2_bucket: bucketTrim };
-    setSyncStatus("syncing");
-    try {
-      const res = await fetch(`/api/vaults?id=${activeVaultId}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(configToSave)
-      });
-      if (res.ok) {
-        setVaults(prev => prev.map(v => v.id === activeVaultId ? { ...v, ...configToSave } : v));
-        setView("list");
-      }
-    } catch (e) { console.error("Save settings failed"); } finally { setSyncStatus("idle"); }
   };
 
   const handleEnableEncryption = async () => {
@@ -892,203 +653,126 @@ export default function MdApp() {
     }
   };
 
-  const manualSyncAll = useCallback(async () => {
-    // ... existing S3 logic ...
-  }, [indexer, storage, sync, r2Config, loadNotes]);
+  const deleteNote = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof window !== 'undefined' && !window.confirm(`Delete ${id}?`)) return;
+    await storage.deleteNote(id);
+    await indexer.deleteNote(id);
+    loadNotes();
+  };
 
-  const forceSyncAll = async () => {
-    setSyncStatus("syncing");
+  const handleLogout = async () => {
+    await Preferences.remove({ key: 'auth_token' });
+    setAuthToken(null);
+    setView("auth");
+  };
+
+  const exportVault = async () => {
+    if (!activeVaultId) return;
     try {
       const allNotes = await indexer.getNotes();
+      const exportData: any[] = [];
       for (const note of allNotes) {
-        const content = await storage.readNote(note.id);
-        await syncToCloud(note.id, content);
+        const c = await storage.readNote(note.id);
+        exportData.push({ ...note, content: c });
       }
-      alert(`Successfully synced ${allNotes.length} notes to R2!`);
-      setSyncStatus("success");
-      setTimeout(() => setSyncStatus("idle"), 3000);
-    } catch (e) {
-      setSyncStatus("error");
-      alert("Sync failed");
-    }
+      const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vault-${activeVaultId}.json`;
+      a.click();
+    } catch (e) { alert("Export failed"); }
   };
 
-  const insertMarkdownSnippet = useCallback((snippet: string) => {
-    if (snippet === '/template') {
-      setShowTemplateModal(true);
-      setShowSlashMenu(false);
-      return;
-    }
-
-    if (snippet === '/link') {
-      setShowWikiMenu(true);
-      setWikiSearch("");
-      setShowSlashMenu(false);
-      return;
-    }
-
-    if (editorRef.current) {
-      const view = editorRef.current;
-      const { state } = view;
-      const selection = state.selection.main;
-      const line = state.doc.lineAt(selection.from);
-      const textBefore = line.text.substring(0, selection.from - line.from);
-      const slashIndex = textBefore.lastIndexOf("/");
-      const from = slashIndex !== -1 ? line.from + slashIndex : selection.from;
-      view.dispatch({ changes: { from, to: selection.to, insert: snippet }, selection: { anchor: from + snippet.length } });
-      view.focus();
-    }
-    setShowSlashMenu(false);
-    setSlashSearch("");
-  }, []);
-
-  const [showWikiMenu, setShowWikiMenu] = useState(false);
-  const [wikiSearch, setWikiSearch] = useState("");
-
-  const handleEditorValueChange = useCallback((value: string, viewUpdate: any) => {
-    setContent(value);
-    setIsDirty(true);
-    const { state } = viewUpdate;
-    const selection = state.selection.main;
-    if (!selection.empty) return;
-    const line = state.doc.lineAt(selection.from);
-    const textBefore = line.text.substring(0, selection.from - line.from);
-    
-    // Wiki-link [[ logic
-    const lastDoubleOpen = textBefore.lastIndexOf("[[");
-    if (lastDoubleOpen !== -1 && !textBefore.substring(lastDoubleOpen).includes("]]")) {
-      const query = textBefore.substring(lastDoubleOpen + 2);
-      setWikiSearch(query);
-      setShowWikiMenu(true);
-      setShowSlashMenu(false);
-      return;
-    }
-    setShowWikiMenu(false);
-
-    // Slash command / logic
-    const lastSlash = textBefore.lastIndexOf("/");
-    if (lastSlash !== -1) {
-      const query = textBefore.substring(lastSlash + 1);
-      const charBeforeSlash = lastSlash > 0 ? textBefore[lastSlash - 1] : " ";
-      if ((charBeforeSlash === " " || charBeforeSlash === "\n") && !query.includes(" ")) {
-        setSlashSearch(query);
-        setShowSlashMenu(true);
-        setSelectedSlashIndex(0);
-        return;
-      }
-    }
-    setShowSlashMenu(false);
-  }, []);
-
-  const toggleCheckboxItem = useCallback((lineIndex: number) => {
-    console.log("Toggling line:", lineIndex);
-    const lines = content.split('\n');
-    const targetLine = lines[lineIndex - 1];
-    if (targetLine === undefined) return;
-
-    let newLine = targetLine;
-    // Specifically target Markdown list items: - [ ] or * [ ] or 1. [ ]
-    if (/^\s*([-*]|\d+\.)\s*\[\s*\]/.test(targetLine)) {
-      newLine = targetLine.replace(/\[\s*\]/, '[x]');
-    } else if (/^\s*([-*]|\d+\.)\s*\[[xX]\]/.test(targetLine)) {
-      newLine = targetLine.replace(/\[[xX]\]/, '[ ]');
-    }
-
-    if (newLine !== targetLine) {
-      const newLines = [...lines];
-      newLines[lineIndex - 1] = newLine;
-      const newContent = newLines.join('\n');
-      setContent(newContent);
-      saveNote(newContent);
-    }
-  }, [content, saveNote]);
-
-  const navigateToNote = async (noteId: string) => {
-    setFileName(noteId);
-    setContent("");
-    setEditMode("preview");
-    setView("editor");
-    const c = await storage.readNote(noteId);
-    setContent(c);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape" && view === "editor") {
-      setView("list");
-    }
-  };
-
-  const handleUnlockVault = async () => {
-    if (!vaultPassphrase || !activeVault?.encryption_salt) return;
-    setIsEncrypting(true);
+  const importVault = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeVaultId) return;
     try {
-      const key = await deriveVaultKey(vaultPassphrase, activeVault.encryption_salt);
-      setActiveVaultKey(key);
-      setShowUnlockModal(false);
-      setVaultPassphrase("");
-      // Reload notes with the new key
-      loadNotes();
-    } catch (e) {
-      alert("Invalid passphrase");
-    } finally {
-      setIsEncrypting(false);
-    }
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const data = JSON.parse(event.target?.result as string) as any[];
+        for (const item of data) {
+          await storage.writeNote(item.id, item.content);
+          await indexer.updateNote(item);
+        }
+        loadNotes();
+        alert(`Imported ${data.length} notes!`);
+      };
+      reader.readAsText(file);
+    } catch (e) { alert("Import failed"); }
   };
 
-  const handleAddFolder = () => {
-    const name = window.prompt("Enter folder name:");
-    if (!name) return;
-    const folderId = activeFolder ? `${activeFolder}/${name}` : name;
-    setActiveFolder(folderId);
-    setView("list");
-  };
-
-  const insertTemplate = (templateContent: string) => {
-    if (editorRef.current) {
-      const view = editorRef.current;
-      const { state } = view;
-      const selection = state.selection.main;
-      
-      // Find the slash to replace
-      const line = state.doc.lineAt(selection.from);
-      const textBefore = line.text.substring(0, selection.from - line.from);
-      const slashIndex = textBefore.lastIndexOf("/template");
-      const from = slashIndex !== -1 ? line.from + slashIndex : selection.from;
-
-      view.dispatch({ 
-        changes: { from, to: selection.to, insert: templateContent }, 
-        selection: { anchor: from + templateContent.length } 
+  const handleShareVault = async (email: string) => {
+    if (!activeVaultId || !authToken || !email) return;
+    try {
+      await fetch('/api/vaults/share', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, vaultId: activeVaultId })
       });
-      view.focus();
-    }
-    setShowTemplateModal(false);
+      alert("Shared!");
+    } catch (e) {}
   };
 
-  const addTemplate = async () => {
-    const name = window.prompt("Template Name:");
-    if (!name) return;
-    const newTemplate = { id: crypto.randomUUID(), name, content: content };
-    const updated = [...templates, newTemplate];
-    setTemplates(updated);
-    await Preferences.set({ key: 'templates', value: JSON.stringify(updated) });
-    alert("Template saved from current editor content!");
+  const startLiveShare = async () => {
+    if (!authToken || !fileName) return;
+    try {
+      const res = await apiFetch('/api/notes/live', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notePath: fileName, content })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLiveShareId(data.shareId);
+        setIsLiveHost(true);
+        setShowShareOptions(false);
+      }
+    } catch (e) {}
   };
 
-  const deleteTemplate = async (id: string) => {
-    if (!confirm("Delete template?")) return;
-    const updated = templates.filter(t => t.id !== id);
-    setTemplates(updated);
-    await Preferences.set({ key: 'templates', value: JSON.stringify(updated) });
+  const handleShareNote = async () => {
+    if (!shareRecipientEmail || !fileName || !authToken) return;
+    try {
+      await apiFetch('/api/notes/share', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipientEmail: shareRecipientEmail, noteTitle: fileName.split('/').pop(), content })
+      });
+      setShowShareOptions(false);
+      setShareRecipientEmail("");
+    } catch (e) {}
   };
 
-  const filteredSlashCommands = SLASH_COMMANDS.filter(cmd => 
-    cmd.label.toLowerCase().includes(slashSearch.toLowerCase())
-  );
+  const joinLiveShare = async () => {
+    const id = window.prompt("ID:");
+    if (!id) return;
+    try {
+      const res = await apiFetch(`/api/notes/live?id=${id}`);
+      const data = await res.json();
+      if (res.ok) { setFileName(data.note_path); setContent(data.content); setLiveShareId(data.id); setIsLiveHost(false); setView("editor"); }
+    } catch (e) {}
+  };
 
-  const filteredWikiNotes = useMemo(() => {
-    const q = wikiSearch.toLowerCase();
-    return notes.filter(n => n.title.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)).slice(0, 10);
-  }, [notes, wikiSearch]);
+  const acceptInboundNote = async (note: any) => {
+    if (!activeVaultId) return;
+    const targetId = `shared/${note.note_title}-${Date.now()}`;
+    await storage.writeNote(targetId, note.content);
+    await indexer.updateNote({ id: targetId, title: note.note_title, tags: ['shared'], lastModified: Date.now(), snippet: note.content.substring(0, 100), content: note.content.substring(0, 10000) });
+    await apiFetch('/api/notes/share', { method: 'PUT', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ shareId: note.id, status: 'accepted' }) });
+    setInboundNotes(prev => prev.filter(n => n.id !== note.id));
+    loadNotes();
+    navigateToNote(targetId);
+  };
+
+  const deleteInboundNote = async (shareId: string) => {
+    await apiFetch('/api/notes/share', { method: 'PUT', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ shareId, status: 'declined' }) });
+    setInboundNotes(prev => prev.filter(n => n.id !== shareId));
+  };
+
+  const filteredSlashCommands = SLASH_COMMANDS.filter(cmd => cmd.label.toLowerCase().includes(slashSearch.toLowerCase()));
+  const filteredWikiNotes = useMemo(() => notes.filter(n => n.title.toLowerCase().includes(wikiSearch.toLowerCase())).slice(0, 10), [notes, wikiSearch]);
 
   const insertWikiLink = (noteId: string) => {
     if (editorRef.current) {
@@ -1106,10 +790,30 @@ export default function MdApp() {
     setShowWikiMenu(false);
   };
 
+  const insertTemplate = (templateContent: string) => {
+    if (editorRef.current) {
+      const view = editorRef.current;
+      const { state } = view;
+      const selection = state.selection.main;
+      const line = state.doc.lineAt(selection.from);
+      const textBefore = line.text.substring(0, selection.from - line.from);
+      const slashIndex = textBefore.lastIndexOf("/template");
+      const from = slashIndex !== -1 ? line.from + slashIndex : selection.from;
+      view.dispatch({ changes: { from, to: selection.to, insert: templateContent }, selection: { anchor: from + templateContent.length } });
+      view.focus();
+    }
+    setShowTemplateModal(false);
+  };
+
+  const forceSyncAll = async () => {
+    const allNotes = await indexer.getNotes();
+    for (const note of allNotes) { const c = await storage.readNote(note.id); await syncToCloud(note.id, c); }
+  };
+
   if (!mounted) return <div className="h-screen w-screen bg-zinc-50 dark:bg-zinc-950" />;
 
   return (
-    <main onKeyDown={handleKeyDown} className="h-screen w-screen overflow-hidden flex bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 pt-[env(safe-area-inset-top)]">
+    <main className="h-screen w-screen overflow-hidden flex bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 pt-[env(safe-area-inset-top)]">
       <AnimatePresence mode="wait">
         {view === "auth" ? (
           <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col justify-center p-8">
@@ -1119,14 +823,11 @@ export default function MdApp() {
                 <p className="text-zinc-500 text-sm font-bold uppercase tracking-[0.3em]">{authMode === "login" ? "Sign In" : "Create Account"}</p>
               </div>
               <div className="space-y-4">
-                <input type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} placeholder="Email" className="w-full p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl outline-none focus:ring-2 focus:ring-blue-500" />
-                <input type="password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} placeholder="Password" className="w-full p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} placeholder="Email" className="w-full p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl outline-none" />
+                <input type="password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} placeholder="Password" className="w-full p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl outline-none" />
                 {authError && <p className="text-center text-xs font-bold text-red-500">{authError}</p>}
-                <button onClick={handleRegister} className="w-full py-5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black rounded-3xl shadow-xl active:scale-[0.98] transition-transform">
+                <button onClick={handleRegister} className="w-full py-5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black rounded-3xl">
                   {authMode === "login" ? "Sign In" : "Get Started"}
-                </button>
-                <button onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(null); }} className="w-full text-center text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                  {authMode === "login" ? "Need an account? Register" : "Have an account? Sign In"}
                 </button>
               </div>
             </div>
@@ -1136,69 +837,33 @@ export default function MdApp() {
             <motion.aside animate={{ width: isSidebarOpen ? 280 : 0 }} className="hidden md:flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 overflow-hidden shrink-0">
               <div className="p-6">
                 <button onClick={() => setIsVaultMenuOpen(!isVaultMenuOpen)} className="w-full flex items-center justify-between p-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                  <div className="min-w-0 text-left"><div className="text-[10px] font-black uppercase tracking-tighter">{activeVault?.name}</div><div className="text-[9px] text-zinc-500 font-bold uppercase">{activeVault?.role}</div></div>
+                  <div className="min-w-0 text-left"><div className="text-[10px] font-black uppercase tracking-tighter">{activeVault?.name}</div></div>
                   <ChevronDown size={14} />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto px-4 space-y-6">
-                <div>
-                  <div className="flex items-center justify-between px-2 mb-3">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Library</h3>
-                    <button onClick={handleAddFolder} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors">
-                      <Plus size={14} className="text-zinc-400" />
-                    </button>
-                  </div>
-                  <div className="space-y-1">
-                    <button onClick={() => { setActiveFolder(null); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${!activeFolder && view === "list" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}><Database size={18} /> All Notes</button>
-                    {folders.map(f => (<button key={f} onClick={() => { setActiveFolder(f); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${activeFolder === f && view === "list" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}><Folder size={18} /> {f.split('/').pop()}</button>))}
-                  </div>
+                <div className="space-y-1">
+                  <button onClick={() => { setActiveFolder(null); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${!activeFolder && view === "list" ? "bg-blue-500 text-white" : "text-zinc-500"}`}><Database size={18} /> All Notes</button>
+                  {folders.map(f => (<button key={f} onClick={() => { setActiveFolder(f); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${activeFolder === f && view === "list" ? "bg-blue-500 text-white" : "text-zinc-500"}`}><Folder size={18} /> {f.split('/').pop()}</button>))}
                 </div>
-
-                {inboundNotes.length > 0 && (
-                  <div>
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-2 mb-3">Shared with Me</h3>
-                    <div className="space-y-1">
-                      {inboundNotes.map(note => (
-                        <div key={note.id} className="p-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-2">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-500"><FileText size={14} /></div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[11px] font-black truncate">{note.note_title}</div>
-                              <div className="text-[9px] text-zinc-400 font-bold truncate">from {note.sender_email}</div>
-                            </div>
-                          </div>
-                          <div className="flex gap-1">
-                            <button onClick={() => acceptInboundNote(note)} className="flex-1 py-1.5 bg-blue-500 text-white text-[9px] font-black uppercase rounded-lg shadow-sm active:scale-95 transition-all">Accept</button>
-                            <button onClick={() => deleteInboundNote(note.id)} className="p-1.5 text-zinc-400 hover:text-red-500 transition-colors"><X size={14} /></button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-              <div className="p-6 border-t border-zinc-200 dark:border-zinc-800 space-y-2">
-                <button onClick={() => setView("settings")} className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all active:scale-[0.98]"><Settings size={18} /> Settings</button>
-                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-[0.98]"><LogOut size={18} /> Logout</button>
+              <div className="p-6 border-t border-zinc-200 dark:border-zinc-800">
+                <button onClick={() => setView("settings")} className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"><Settings size={18} /> Settings</button>
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"><LogOut size={18} /> Logout</button>
               </div>
             </motion.aside>
 
             <div className="flex-1 flex flex-col relative overflow-hidden bg-white dark:bg-zinc-950">
               {view === "list" ? (
-                <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col">
-                  <header className="p-6 pb-2 flex justify-between items-center md:hidden">
-                    <h1 className="text-2xl font-black italic">{activeVault?.name}</h1>
-                    <button onClick={() => setView("settings")} className="p-2 text-zinc-400"><Settings size={24} /></button>
-                  </header>
+                <motion.div key="list" className="flex-1 flex flex-col">
                   <div className="p-6 space-y-4">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:block p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg"><List size={20} /></button>
                       <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search everything..." className="flex-1 px-5 py-3 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
-                    {activeFolder && <div className="flex items-center gap-2 px-2"><button onClick={() => setActiveFolder(null)} className="text-[10px] font-black text-blue-500 uppercase">Root</button><ChevronLeft size={10} className="rotate-180 text-zinc-300" /><span className="text-[10px] font-black text-zinc-400 uppercase truncate">{activeFolder}</span></div>}
                   </div>
                   <div className="flex-1 overflow-y-auto p-6 pt-0 space-y-3">
-                    <button onClick={() => { setFileName(`${activeFolder ? activeFolder+'/' : ''}note-${Date.now()}`); setContent(""); setView("editor"); }} className="w-full p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl flex items-center justify-center gap-2 text-zinc-400 font-bold uppercase text-xs tracking-widest hover:border-blue-500 hover:text-blue-500 transition-all"><Plus size={18} /> New Entry</button>
+                    <button onClick={() => { setFileName(`note-${Date.now()}`); setContent(""); setView("editor"); }} className="w-full p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl flex items-center justify-center gap-2 text-zinc-400 font-bold uppercase text-xs tracking-widest"><Plus size={18} /> New Entry</button>
                     {filteredNotes.map(note => (
                       <div key={note.id} onClick={async () => { setFileName(note.id); setContent(""); setView("editor"); const c = await loadNoteContent(note.id); setContent(c); }} className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col gap-1 active:scale-[0.99] transition-all hover:shadow-md cursor-pointer group">
                         <div className="flex items-center gap-3">
@@ -1206,19 +871,16 @@ export default function MdApp() {
                           <span className="font-bold flex-1 truncate text-sm">{note.title}</span>
                           <button onClick={(e) => { e.stopPropagation(); deleteNote(note.id, e); }} className="p-2 text-zinc-200 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                         </div>
-                        {note.snippet && <p className="text-xs text-zinc-500 line-clamp-1 pl-12">{note.snippet}</p>}
                       </div>
                     ))}
                   </div>
                 </motion.div>
               ) : view === "editor" ? (
-                <motion.div key="editor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col overflow-hidden">
+                <motion.div key="editor" className="flex-1 flex flex-col overflow-hidden">
                   <header className="flex items-center justify-between px-2 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10">
-                    <div className="flex items-center min-w-0"><button onClick={() => setView("list")} className="p-2 shrink-0"><ChevronLeft size={24} /></button><input value={fileName.split('/').pop()} title={fileName} readOnly className="min-w-0 bg-transparent font-bold text-sm outline-none px-1 cursor-default" /></div>
+                    <div className="flex items-center min-w-0"><button onClick={() => setView("list")} className="p-2 shrink-0"><ChevronLeft size={24} /></button><span className="min-w-0 bg-transparent font-bold text-sm px-1 truncate cursor-default">{fileName.split('/').pop()}</span></div>
                     <div className="flex gap-0.5 items-center shrink-0 pr-2">
-                      <div className="px-2">{syncStatus === "syncing" && <Cloud className="animate-pulse text-blue-500" size={18} />}{syncStatus === "success" && <Cloud className="text-green-500" size={18} />}{syncStatus === "error" && <CloudOff className="text-red-500" size={18} />}</div>
                       <button onClick={() => setShowShareOptions(true)} className="p-2 text-zinc-400 hover:text-blue-500"><Share size={20} /></button>
-                      <button onClick={loadHistory} className="p-2 text-zinc-400 hover:text-blue-500"><History size={20} /></button>
                       <button onClick={() => saveNote()} className={`p-2 transition-colors ${isDirty ? "text-blue-600" : "text-zinc-300"}`}><Save size={20} /></button>
                       <button onClick={() => setEditMode(editMode === "edit" ? "preview" : "edit")} className={`ml-2 p-2 rounded-xl transition-all ${editMode === "preview" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>{editMode === "edit" ? <Eye size={20} /> : <Edit3 size={20} />}</button>
                     </div>
@@ -1231,10 +893,7 @@ export default function MdApp() {
                             value={content} 
                             height="100%" 
                             theme={isDarkMode ? 'dark' : 'light'} 
-                            extensions={[
-                              markdown({ base: markdownLanguage, codeLanguages: languages }),
-                              keymap.of([{ key: "Enter", run: insertNewlineContinueMarkup }])
-                            ]} 
+                            extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]} 
                             onChange={handleEditorValueChange} 
                             onCreateEditor={(view) => { editorRef.current = view; }} 
                             className="h-full text-base" 
@@ -1250,24 +909,6 @@ export default function MdApp() {
                                       <div><div className="text-xs font-bold">{cmd.label}</div><div className={`text-[9px] ${idx === selectedSlashIndex ? "text-white/70" : "text-zinc-400"}`}>{cmd.description}</div></div>
                                     </button>
                                   ))}
-                                  {filteredSlashCommands.length === 0 && <div className="p-4 text-center text-xs text-zinc-400 font-bold uppercase italic tracking-widest">No match</div>}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-
-                          <AnimatePresence>
-                            {showWikiMenu && (
-                              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-12 left-8 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50">
-                                <div className="p-2 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-400">Link to Note</div>
-                                <div className="max-h-64 overflow-y-auto p-1">
-                                  {filteredWikiNotes.map((note) => (
-                                    <button key={note.id} onClick={() => insertWikiLink(note.id)} className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-blue-500 hover:text-white transition-colors group">
-                                      <div className="p-1.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg group-hover:bg-white/20"><FileText size={16} /></div>
-                                      <div className="text-xs font-bold truncate">{note.title}</div>
-                                    </button>
-                                  ))}
-                                  {filteredWikiNotes.length === 0 && <div className="p-4 text-center text-xs text-zinc-400 font-bold uppercase italic tracking-widest">No notes found</div>}
                                 </div>
                               </motion.div>
                             )}
@@ -1277,15 +918,8 @@ export default function MdApp() {
   remarkPlugins={[remarkGfm]} 
   components={{ 
     li: ({node, children, ...props}) => {
-      // Check if it's a task list item
       const isTask = (node as any)?.checked !== null && (node as any)?.checked !== undefined;
-      if (isTask) {
-        return (
-          <li className="flex items-start gap-2 list-none" style={{ marginLeft: '-1.5rem' }}>
-            {children}
-          </li>
-        );
-      }
+      if (isTask) return <li className="flex items-start gap-2 list-none" style={{ marginLeft: '-1.5rem' }}>{children}</li>;
       return <li {...props}>{children}</li>;
     },
     input: ({node, ...props}) => {
@@ -1296,105 +930,34 @@ export default function MdApp() {
             type="checkbox"
             checked={props.checked}
             className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0" 
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (line) toggleCheckboxItem(line);
-            }}
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (line) toggleCheckboxItem(line); }}
             readOnly
           />
         );
       }
       return <input {...props} />;
-    },
-    // Custom Wiki-link renderer for text segments
-    p: ({children}) => {
-      const processWikiLinks = (child: any): any => {
-        if (typeof child !== 'string') return child;
-        
-        const parts = child.split(/(\[\[.*?\]\])/g);
-        return parts.map((part, i) => {
-          if (part.startsWith('[[') && part.endsWith(']]')) {
-            const noteId = part.slice(2, -2);
-            return (
-              <button
-                key={i}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  navigateToNote(noteId);
-                }}
-                className="text-blue-500 hover:underline font-bold bg-blue-50 dark:bg-blue-900/20 px-1 rounded mx-0.5 inline-block"
-              >
-                {noteId.split('/').pop()}
-              </button>
-            );
-          }
-          return part;
-        });
-      };
-
-      return <p>{React.Children.map(children, processWikiLinks)}</p>;
     }
   }}
 >
   {content}
 </ReactMarkdown></div>}
                     </div>
-                    <AnimatePresence>{showHistory && <motion.div initial={{ x: 300 }} animate={{ x: 0 }} exit={{ x: 300 }} className="absolute inset-y-0 right-0 w-72 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 z-20 flex flex-col shadow-2xl"><div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center"><h3 className="text-xs font-black uppercase tracking-widest">History</h3><button onClick={() => setShowHistory(false)}><X size={16} /></button></div><div className="flex-1 overflow-y-auto p-2 space-y-1">{revisions.map(rev => (<button key={rev.id} onClick={() => { if(confirm("Restore this version?")) { setContent(rev.content); setIsDirty(true); setShowHistory(false); } }} className="w-full p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-colors"><div className="text-[10px] font-black text-blue-500 uppercase mb-1">#{rev.hash}</div><div className="text-[10px] text-zinc-500 font-bold">{new Date(rev.created_at * 1000).toLocaleString()}</div><div className="text-[9px] text-zinc-400 truncate mt-1">by {rev.author}</div></button>))}</div></motion.div>}</AnimatePresence>
                   </div>
                 </motion.div>
               ) : (
-                <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col p-8 space-y-8 overflow-y-auto max-w-2xl mx-auto w-full">
+                <motion.div key="settings" className="flex-1 flex flex-col p-8 space-y-8 overflow-y-auto max-w-2xl mx-auto w-full">
                   <header><h1 className="text-3xl font-black tracking-tight italic">Settings</h1></header>
                   <section className="space-y-6">
-                    <div className="space-y-4">
-                      <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Account</h2>
-                      <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between"><div className="text-sm font-bold truncate">{userEmail}</div><div className="flex gap-2"><button onClick={() => setShowPasswordModal(true)} className="p-2 text-zinc-400 hover:text-blue-500"><Key size={20} /></button></div></div>
-                      {isAdmin && (
-                        <button onClick={() => window.location.replace("/admin")} className="w-full flex items-center justify-between p-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">
-                          <span>Admin Portal</span>
-                          <Shield size={16} />
-                        </button>
-                      )}
-                    </div>
-
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                       <div className="flex items-center justify-between">
                         <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Security</h2>
                         {activeVault?.encryption_enabled ? (
-                          <span className="flex items-center gap-1.5 text-[10px] font-black text-green-500 uppercase">
-                            <Shield size={12} /> E2EE Enabled
-                          </span>
+                          <span className="flex items-center gap-1.5 text-[10px] font-black text-green-500 uppercase"><Shield size={12} /> E2EE Enabled</span>
                         ) : (
-                          <button onClick={handleEnableEncryption} className="text-[10px] font-black text-blue-500 uppercase flex items-center gap-1 hover:underline">
-                            <Lock size={12} /> Enable E2EE
-                          </button>
+                          <button onClick={handleEnableEncryption} className="text-[10px] font-black text-blue-500 uppercase flex items-center gap-1 hover:underline"><Lock size={12} /> Enable E2EE</button>
                         )}
                       </div>
-                      {activeVault?.encryption_enabled && (
-                        <p className="text-[10px] text-zinc-500 font-bold leading-relaxed">
-                          Content in this vault is encrypted on your device. Only you have the key.
-                        </p>
-                      )}
                     </div>
-
-                    <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Templates</h2>
-                        <button onClick={addTemplate} className="text-[10px] font-black text-blue-500 uppercase flex items-center gap-1"><Plus size={12} /> Save Current as Template</button>
-                      </div>
-                      <div className="space-y-2">
-                        {templates.map(t => (
-                          <div key={t.id} className="p-4 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex items-center justify-between group">
-                            <div className="text-sm font-bold">{t.name}</div>
-                            <button onClick={() => deleteTemplate(t.id)} className="p-2 text-zinc-200 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
-                          </div>
-                        ))}
-                        {templates.length === 0 && <p className="text-xs text-zinc-400 italic">No templates configured.</p>}
-                      </div>
-                    </div>
-
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                       <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Data Management</h2>
                       <div className="grid grid-cols-2 gap-3">
@@ -1408,151 +971,20 @@ export default function MdApp() {
                         <Cloud size={16} /> Sync All Notes to Cloud
                       </button>
                     </div>
-
-                    <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                      <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Collaborate</h2>
-                      <div className="space-y-3"><input id="shareEmail" placeholder="team@example.com" className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all" /><button onClick={() => { const el = document.getElementById('shareEmail') as HTMLInputElement; handleShareVault(el.value); el.value = ''; }} className="w-full py-4 bg-blue-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"><UserPlus size={18} /> Invite Member</button></div>
-                      <button onClick={joinLiveShare} className="w-full py-4 border-2 border-dashed border-zinc-200 dark:border-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest rounded-2xl hover:border-blue-500 hover:text-blue-500 transition-all flex items-center justify-center gap-2"><Cloud size={16} /> Join Live Session</button>
-                    </div>
                   </section>
                 </motion.div>
               )}
             </div>
-
-            <AnimatePresence>
-              {showPasswordModal && (
-                <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden">
-                    <div className="p-8 border-b border-zinc-100 dark:border-zinc-800">
-                      <h2 className="text-2xl font-black tracking-tight italic">{forcePasswordChange ? "Security Reset" : "Change Password"}</h2>
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{forcePasswordChange ? "Admin has required a reset" : "Update your security"}</p>
-                    </div>
-                    <div className="p-8 space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-1">Current Password</label>
-                        <input type="password" value={passwordForm.current} onChange={(e) => setPasswordForm({...passwordForm, current: e.target.value})} className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-1">New Password</label>
-                        <input type="password" value={passwordForm.new} onChange={(e) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                      <div className="flex gap-4 pt-4">
-                        {!forcePasswordChange && <button onClick={() => setShowPasswordModal(false)} className="flex-1 py-4 text-zinc-500 font-black uppercase text-xs tracking-widest hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-2xl transition-all">Cancel</button>}
-                        <button onClick={handlePasswordChange} className="flex-2 px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Update</button>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {showTemplatePicker && (
-                <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden">
-                    <div className="p-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
-                      <h2 className="text-2xl font-black tracking-tight italic">Choose Template</h2>
-                      <button onClick={() => setShowTemplateModal(false)}><X size={20} /></button>
-                    </div>
-                    <div className="p-4 max-h-[60vh] overflow-y-auto space-y-2">
-                      {templates.map(t => (
-                        <button key={t.id} onClick={() => insertTemplate(t.content)} className="w-full p-4 text-left bg-zinc-50 dark:bg-zinc-800 hover:bg-blue-500 hover:text-white rounded-2xl font-bold transition-all flex items-center justify-between group">
-                          {t.name}
-                          <Layout size={16} className="text-zinc-400 group-hover:text-white" />
-                        </button>
-                      ))}
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {showShareOptions && (
-                <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden">
-                    <div className="p-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
-                      <h2 className="text-2xl font-black tracking-tight italic">Share Option</h2>
-                      <button onClick={() => { setShowShareOptions(false); setShareMode(null); }}><X size={20} /></button>
-                    </div>
-                    
-                    <div className="p-8 space-y-4">
-                      {!shareMode ? (
-                        <div className="grid grid-cols-1 gap-3">
-                          <button 
-                            onClick={() => setShareMode("copy")}
-                            className="w-full p-6 bg-zinc-50 dark:bg-zinc-800 hover:bg-blue-500 hover:text-white rounded-3xl transition-all text-left group"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="p-3 bg-white dark:bg-zinc-900 rounded-2xl group-hover:bg-white/20"><Share size={20} /></div>
-                              <div><div className="font-black uppercase text-xs tracking-widest">Send a Copy</div><div className="text-[10px] opacity-70 font-bold uppercase">Static attachment to inbox</div></div>
-                            </div>
-                          </button>
-                          <button 
-                            onClick={startLiveShare}
-                            className="w-full p-6 bg-zinc-50 dark:bg-zinc-800 hover:bg-purple-500 hover:text-white rounded-3xl transition-all text-left group"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="p-3 bg-white dark:bg-zinc-900 rounded-2xl group-hover:bg-white/20"><Cloud size={20} /></div>
-                              <div><div className="font-black uppercase text-xs tracking-widest">Live Collaboration</div><div className="text-[10px] opacity-70 font-bold uppercase">Real-time active tracking</div></div>
-                            </div>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">Enter recipient email address</p>
-                          <input 
-                            type="email" 
-                            value={shareRecipientEmail} 
-                            onChange={(e) => setShareRecipientEmail(e.target.value)} 
-                            placeholder="recipient@example.com" 
-                            className="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 font-bold" 
-                          />
-                          <button onClick={handleShareNote} className="w-full py-4 bg-blue-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl active:scale-[0.98] transition-all">Send Note</button>
-                          <button onClick={() => setShareMode(null)} className="w-full py-2 text-zinc-400 font-black uppercase text-[9px] tracking-widest">Back</button>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
             <AnimatePresence>
               {showUnlockModal && (
                 <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
                   <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[3rem] w-full max-w-sm shadow-2xl overflow-hidden">
                     <div className="p-10 text-center space-y-6">
-                      <div className="mx-auto w-20 h-20 bg-blue-500/10 rounded-3xl flex items-center justify-center text-blue-500">
-                        <Lock size={40} />
-                      </div>
-                      <div className="space-y-2">
-                        <h2 className="text-3xl font-black tracking-tight italic">Vault Locked</h2>
-                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-relaxed">
-                          This vault is protected with End-to-End Encryption.<br/>Enter your passphrase to decrypt your notes.
-                        </p>
-                      </div>
+                      <div className="mx-auto w-20 h-20 bg-blue-500/10 rounded-3xl flex items-center justify-center text-blue-500"><Lock size={40} /></div>
+                      <h2 className="text-3xl font-black tracking-tight italic">Vault Locked</h2>
                       <div className="space-y-4">
-                        <input 
-                          type="password" 
-                          value={vaultPassphrase} 
-                          onChange={(e) => setVaultPassphrase(e.target.value)} 
-                          onKeyDown={(e) => e.key === 'Enter' && handleUnlockVault()}
-                          placeholder="Passphrase" 
-                          className="w-full p-5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl text-center text-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold" 
-                        />
-                        <button 
-                          onClick={handleUnlockVault} 
-                          disabled={isEncrypting}
-                          className="w-full py-5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase text-xs tracking-widest rounded-3xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                        >
-                          {isEncrypting ? "Decrypting..." : "Unlock Vault"}
-                        </button>
-                        <button 
-                          onClick={() => { setActiveVaultId(vaults[0]?.id || null); setShowUnlockModal(false); }}
-                          className="w-full py-2 text-zinc-400 font-black uppercase text-[9px] tracking-widest"
-                        >
-                          Cancel & Switch Vault
-                        </button>
+                        <input type="password" value={vaultPassphrase} onChange={(e) => setVaultPassphrase(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleUnlockVault()} placeholder="Passphrase" className="w-full p-5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl text-center text-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold" />
+                        <button onClick={handleUnlockVault} disabled={isEncrypting} className="w-full py-5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase text-xs tracking-widest rounded-3xl shadow-xl active:scale-[0.98] transition-all">{isEncrypting ? "Decrypting..." : "Unlock Vault"}</button>
                       </div>
                     </div>
                   </motion.div>
