@@ -21,6 +21,8 @@ import { getSyncProvider, SyncStatus, SyncConfig } from "@/lib/sync";
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
+import { keymap } from "@codemirror/view";
+import { insertNewlineContinueMarkup } from "@codemirror/commands";
 
 // Native Plugins
 import { Capacitor } from '@capacitor/core';
@@ -322,6 +324,60 @@ export default function MdApp() {
     return apiFetch(path, options);
   }, []);
 
+  const fullSyncFromCloud = useCallback(async (vaultId: string, token: string) => {
+    setSyncStatus("syncing");
+    try {
+      const res = await apiFetchCallback(`/api/notes/sync?vaultId=${vaultId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to list cloud notes");
+      
+      const objects = await res.json() as any[];
+      console.log(`Cloud sync: Found ${objects.length} objects in vault ${vaultId}`);
+
+      for (const obj of objects) {
+        const fileName = obj.key.replace(`${vaultId}/`, '');
+        if (!fileName || fileName === '.keep') continue;
+
+        // Check if we already have this note and if it's newer locally (basic conflict avoidance)
+        // For now, cloud wins on full sync
+        const noteRes = await apiFetchCallback(`/api/notes/sync?vaultId=${vaultId}&fileName=${encodeURIComponent(fileName)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (noteRes.ok) {
+          const cloudContent = await noteRes.text();
+          let plainContent = cloudContent;
+          
+          // If vault is encrypted, we might need to decrypt it later for indexing, 
+          // but for now we store as is.
+          await storage.writeNote(fileName, cloudContent);
+          
+          // Indexing
+          const h1Line = cloudContent.split('\n').find(l => l.startsWith('# '));
+          const title = h1Line ? h1Line.replace('# ', '').trim() : fileName.replace('.md', '');
+          const tags = Array.from(cloudContent.matchAll(/#(\w+)/g)).map(m => m[1]);
+          const snippet = cloudContent.replace(/^# .*\n?/, '').substring(0, 100).trim();
+          
+          await indexer.updateNote({
+            id: fileName.replace('.md', ''),
+            title,
+            tags: [...new Set(tags)],
+            lastModified: new Date(obj.uploaded).getTime(),
+            snippet,
+            content: cloudContent.substring(0, 10000)
+          });
+        }
+      }
+      loadNotes();
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } catch (e) {
+      console.error("Full sync failed:", e);
+      setSyncStatus("error");
+    }
+  }, [apiFetchCallback, storage, indexer, loadNotes]);
+
   const loadAuth = useCallback(async () => {
     if (typeof window === 'undefined') return;
     const { value } = await Preferences.get({ key: 'auth_token' });
@@ -360,6 +416,7 @@ export default function MdApp() {
           if (data.length > 0) {
             setActiveVaultId(data[0].id);
             migrateLegacyData(data[0].id, value);
+            fullSyncFromCloud(data[0].id, value);
           }
           setView("list");
         } else {
@@ -370,7 +427,7 @@ export default function MdApp() {
       } catch (e) { setView("list"); }
     } else { setView("auth"); }
     setIsAuthLoading(false);
-  }, [apiFetchCallback]);
+  }, [apiFetchCallback, fullSyncFromCloud]);
 
   const handleRegister = async () => {
     if (!userEmail || !userPassword) return;
@@ -1170,7 +1227,18 @@ export default function MdApp() {
                     <div className="flex-1 relative overflow-hidden">
                       {editMode === "edit" ? (
                         <div className="h-full relative">
-                          <CodeMirror value={content} height="100%" theme={isDarkMode ? 'dark' : 'light'} extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]} onChange={handleEditorValueChange} onCreateEditor={(view) => { editorRef.current = view; }} className="h-full text-base" />
+                          <CodeMirror 
+                            value={content} 
+                            height="100%" 
+                            theme={isDarkMode ? 'dark' : 'light'} 
+                            extensions={[
+                              markdown({ base: markdownLanguage, codeLanguages: languages }),
+                              keymap.of([{ key: "Enter", run: insertNewlineContinueMarkup }])
+                            ]} 
+                            onChange={handleEditorValueChange} 
+                            onCreateEditor={(view) => { editorRef.current = view; }} 
+                            className="h-full text-base" 
+                          />
                           <AnimatePresence>
                             {showSlashMenu && (
                               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-12 left-8 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50">
@@ -1228,7 +1296,8 @@ export default function MdApp() {
             type="checkbox"
             checked={props.checked}
             className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0" 
-            onClick={(e) => {
+            onMouseDown={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               if (line) toggleCheckboxItem(line);
             }}
