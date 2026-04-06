@@ -834,7 +834,27 @@ export default function MdApp() {
           </motion.div>
         ) : (
           <>
-            <motion.aside animate={{ width: isSidebarOpen ? 280 : 0 }} className="hidden md:flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 overflow-hidden shrink-0">
+            {/* Sidebar Overlay for Mobile */}
+            <AnimatePresence>
+              {isSidebarOpen && (
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="fixed inset-0 bg-zinc-950/20 backdrop-blur-sm z-[40] md:hidden"
+                />
+              )}
+            </AnimatePresence>
+
+            <motion.aside 
+              animate={{ 
+                width: isSidebarOpen ? 280 : 0,
+                x: isSidebarOpen ? 0 : -280
+              }} 
+              initial={false}
+              className={`fixed md:relative inset-y-0 left-0 z-[50] md:z-0 flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 overflow-hidden shrink-0 shadow-2xl md:shadow-none`}
+            >
               <div className="p-6">
                 <button onClick={() => setIsVaultMenuOpen(!isVaultMenuOpen)} className="w-full flex items-center justify-between p-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <div className="min-w-0 text-left"><div className="text-[10px] font-black uppercase tracking-tighter">{activeVault?.name}</div></div>
@@ -856,9 +876,17 @@ export default function MdApp() {
             <div className="flex-1 flex flex-col relative overflow-hidden bg-white dark:bg-zinc-950">
               {view === "list" ? (
                 <motion.div key="list" className="flex-1 flex flex-col">
+                  {/* Mobile Header */}
+                  <header className="p-6 pb-2 flex justify-between items-center md:hidden">
+                    <h1 className="text-2xl font-black italic">{activeVault?.name}</h1>
+                    <button onClick={() => setView("settings")} className="p-2 text-zinc-400"><Settings size={24} /></button>
+                  </header>
+
                   <div className="p-6 space-y-4">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:block p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg"><List size={20} /></button>
+                      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
+                        <List size={20} />
+                      </button>
                       <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search everything..." className="flex-1 px-5 py-3 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                   </div>
