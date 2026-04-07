@@ -111,10 +111,16 @@ export default function MdApp() {
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [isVaultMenuOpen, setIsVaultMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [revisions, setRevisions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      setIsSidebarOpen(true);
+    }
+  }, []);
 
   // E2EE State
   const [activeVaultKey, setActiveVaultKey] = useState<CryptoKey | null>(null);
@@ -944,6 +950,7 @@ export default function MdApp() {
                         </div>
                       ) : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown 
   remarkPlugins={[remarkGfm]} 
+  sourcePos={true}
   components={{ 
     li: ({node, children, ...props}) => {
       const isTask = (node as any)?.checked !== null && (node as any)?.checked !== undefined;
@@ -958,7 +965,7 @@ export default function MdApp() {
             type="checkbox"
             checked={props.checked}
             className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0" 
-            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (line) toggleCheckboxItem(line); }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (line) toggleCheckboxItem(line); }}
             readOnly
           />
         );
