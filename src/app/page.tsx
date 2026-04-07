@@ -164,38 +164,30 @@ export default function MdApp() {
   const sync = useMemo(() => getSyncProvider(), []);
 
   const folders = useMemo(() => {
-    const set = new Set<string>();
+    const topLevel = new Set<string>();
     notes.forEach(n => {
       if (n.id.includes('/')) {
-        const parts = n.id.split('/');
-        if (activeFolder) {
-          if (n.id.startsWith(`${activeFolder}/`)) {
-            const sub = n.id.replace(`${activeFolder}/`, '').split('/')[0];
-            if (sub && !sub.includes('.')) set.add(`${activeFolder}/${sub}`);
-          }
-        } else {
-          set.add(parts[0]);
-        }
+        topLevel.add(n.id.split('/')[0]);
       }
     });
-    // Ensure templates folder is always in the list if it has notes or we want it there
-    if (!activeFolder) set.add('templates');
-    return Array.from(set).sort();
-  }, [notes, activeFolder]);
+    return Array.from(topLevel).sort();
+  }, [notes]);
 
   const filteredNotes = useMemo(() => {
     let list = notes;
-    if (!searchQuery) {
-      if (activeFolder) {
-        list = list.filter(n => n.id.startsWith(`${activeFolder}/`));
-      } else {
-        list = list.filter(n => !n.id.includes('/'));
-      }
-    } else {
+    if (activeFolder) {
+      // Show notes directly in the folder, not in subfolders
+      list = list.filter(n => n.id.startsWith(`${activeFolder}/`) && n.id.split('/').length === activeFolder.split('/').length + 1);
+    } else if (!searchQuery) {
+      // Root view, show only notes not in any folder
+      list = list.filter(n => !n.id.includes('/'));
+    }
+
+    if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(n => 
+      // Search all notes if there's a query, regardless of folder
+      list = notes.filter(n => 
         n.title.toLowerCase().includes(q) || 
-        n.snippet.toLowerCase().includes(q) ||
         (n.content && n.content.toLowerCase().includes(q))
       );
     }
@@ -293,6 +285,7 @@ export default function MdApp() {
       console.log(`Cloud sync: Found ${objects.length} objects in vault ${vaultId}`);
 
       for (const obj of objects) {
+        if (obj.key.endsWith('/')) continue;
         const fileName = obj.key.replace(`${vaultId}/`, '');
         if (!fileName || fileName === '.keep') continue;
 
@@ -538,19 +531,29 @@ export default function MdApp() {
     } catch (e) {}
   }, []);
 
+  const [hasCheckedForUpdate, setHasCheckedForUpdate] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     loadAuth();
     loadConfig();
-    loadTemplates();
-    checkForUpdates();
+    if (!hasCheckedForUpdate) {
+      checkForUpdates();
+      setHasCheckedForUpdate(true);
+    }
     if (typeof window !== "undefined") {
       setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
       (window as any).Buffer = Buffer;
     }
     App.addListener('appUrlOpen', async (data: any) => { console.log('App opened with URL:', data.url); });
-  }, [loadAuth, loadConfig, loadTemplates, checkForUpdates]);
+  }, [loadAuth, loadConfig, checkForUpdates]);
 
+  useEffect(() => {
+    if (mounted) {
+      loadTemplates();
+    }
+  }, [notes, mounted]);
+  
   useEffect(() => {
     if (activeVaultId) {
       storage.setVault(activeVaultId);
