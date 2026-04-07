@@ -1,28 +1,21 @@
 # md.app Project Status
 
 ## 🚀 Recent Accomplishments
+- **Google OAuth Integration (v1.4.0)**: Implemented "Sign in with Google" functionality, including backend callback logic for user creation/linking and frontend UI updates.
+- **Template Management Overhaul (v1.3.3)**: Refactored templates to be stored as editable notes within a dedicated `templates/` folder, with a "Restore to Default" feature.
+- **UI Stability Fixes (v1.3.3)**: Resolved a critical re-rendering loop that caused UI instability, making the app reliable and usable again.
+- **Interactive Checklists (v1.3.3)**: Finally fixed the long-standing bug preventing checklists from being toggled in the UI.
 - **Admin Portal (v1.1.57-61)**: Complete administrative suite for user governance, password management, and storage quotas.
-- **Interactive Checklists (v1.1.62-64, v1.3.1)**: Real-time toggling of tasks in Reading View with source-file synchronization; fixed toggle logic for reliability.
-- **Templates System (v1.1.65)**: Added `/template` command and settings-based template management.
-- **Wiki-links (v1.1.66-68)**: Note linking with `[[` suggestions, `/link` command, and clickable navigation in Reading View.
-- **Document Sharing (Form A) (v1.1.67)**: Inbox-style document sharing between users.
-- **Android Connectivity (v1.1.68, v1.2.8)**: Resolved API base URL issues for native Android environments; centralized logic in `src/lib/api.ts`.
-- **iOS Platform (v1.1.81)**: Scaffolded native iOS project and implemented GitHub Actions build workflow.
-- **End-to-End Encryption (E2EE) (v1.1.71)**: AES-256-GCM client-side encryption for per-vault security.
-- **CI/CD Security (v1.1.72)**: Integrated Gitleaks, Semgrep, Trivy, and security hygiene workflows.
-- **Platform-Aware Indexing (v1.2.8)**: Refactored `JsonIndexProvider` to use Capacitor `Preferences` for reliable mobile storage.
-- **Cloud Sync Automation (v1.2.9)**: Implemented `fullSyncFromCloud` on login and vault switch to ensure mobile parity.
-- **Mobile UI Overhaul (v1.3.2)**: Restored mobile-optimized header and sidebar navigation for complete feature access on small screens.
+- **End-to-End Encryption (v1.2.0)**: Vault-level E2EE implemented, giving users full control over their data privacy.
+- **Cross-Platform Sync (v1.1.0)**: Self-hosted sync via Cloudflare R2 and S3-compatible services is live and stable.
+- **Initial Release (v1.0.0)**: Core editor, local storage, and basic note management functionality established.
 
-## 🏗️ Current Work
-- **Form B Sharing (Live Share)**: Real-time collaborative editing using a presence engine. (Not yet started).
-- **Backlinks Panel**: A UI component to show what other notes link to the current note.
+## 🎯 Near-Term Goals (Next 1-2 Sprints)
+1.  **Mobile Polish**: Address remaining UI/UX inconsistencies on Android and iOS, particularly around navigation and input handling.
+2.  **Public Release Prep**: Finalize documentation, complete store listings for Google Play and Apple App Store, and prepare marketing materials.
+3.  **Performance Tuning**: Profile and optimize initial load times and sync performance, especially for large vaults.
 
-## 📋 Known Issues / Gaps
-- **Editor Continuation**: Basic Enter key behavior is standard; advanced list/markup continuation (CodeMirror commands) is being refined for mobile keyboards.
-- **Live Sync Conflicts**: Currently uses a "last write wins" strategy for the cloud; Form B will address this.
-
-## 📅 Roadmap
-1.  **Form B (Live Share)**: WebSocket-based or polling-based presence and sync.
-2.  **Web Clipper**: Browser extension for saving content.
-3.  **Google Play Store Submission**: Sign production App Bundles (.aab) and complete store listing.
+## 🏔️ Long-Term Roadmap
+1.  **Live Collaboration**: Enhance note sharing with real-time, WebSocket-based collaborative editing.
+2.  **Web Clipper**: Develop a browser extension for easily saving articles and web content directly to a vault.
+3.  **Advanced Search**: Implement more powerful search capabilities, including full-text search within documents and filtering by tags or date ranges.

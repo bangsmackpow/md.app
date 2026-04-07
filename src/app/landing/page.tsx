@@ -28,7 +28,7 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             className="text-6xl md:text-8xl font-black tracking-tighter leading-[0.9] mb-8"
           >
-            Markdown for <span className="text-blue-500">Families</span>, <span className="text-zinc-400">Teams,</span> & <span className="text-zinc-400">Companies.</span>
+            A Private, <span className="text-blue-500">Self-Hosted</span>, Markdown-based alternative to Notion & Evernote.
           </motion.h2>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
@@ -36,7 +36,7 @@ export default function LandingPage() {
             transition={{ delay: 0.1 }}
             className="text-xl text-zinc-500 dark:text-zinc-400 font-medium mb-12 max-w-xl"
           >
-            A local-first, premium note-taking experience with end-to-end data ownership. Sync effortlessly via Cloudflare R2.
+            A local-first, premium note-taking experience with end-to-end data ownership. Sync effortlessly with your own S3 or Cloudflare R2 bucket.
           </motion.p>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -44,8 +44,14 @@ export default function LandingPage() {
             transition={{ delay: 0.2 }}
             className="flex flex-wrap gap-4"
           >
-            <Link href="./?auth=1" className="px-10 py-5 bg-blue-500 text-white text-lg font-black rounded-3xl hover:bg-blue-600 active:scale-95 transition-all flex items-center gap-3">
-              Start your Vault <ChevronRight size={20} />
+            <Link href="./?auth=1" className="px-8 py-4 bg-blue-500 text-white text-base font-black rounded-2xl hover:bg-blue-600 active:scale-95 transition-all flex items-center gap-3">
+              Login with Email
+            </Link>
+            <Link href="./?auth=1" className="px-8 py-4 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white text-base font-black rounded-2xl hover:bg-zinc-200 dark:hover:bg-zinc-700 active:scale-95 transition-all flex items-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="20" height="20" viewBox="0 0 48 48">
+                <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.519-3.354-11.02-7.977l-6.573,5.219C9.827,39.3,16.29,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571l6.19,5.238C43.021,36.251,44,30.556,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
+              </svg>
+              Sign in with Google
             </Link>
           </motion.div>
         </div>
@@ -54,18 +60,18 @@ export default function LandingPage() {
         <div className="grid md:grid-cols-3 gap-8 mt-40">
           <FeatureCard 
             icon={<Shield className="text-blue-500" />}
-            title="Data Ownership"
-            description="Your notes stay in your S3/R2 bucket. No proprietary databases, no lock-in."
+            title="End-to-End Encrypted"
+            description="Enable vault-level E2EE to ensure only you and your trusted members can read your notes."
           />
           <FeatureCard 
-            icon={<Zap className="text-purple-500" />}
-            title="Local First"
-            description="Lightning fast performance. Edit offline, sync when you're back. Zero lag."
+            icon={<Globe className="text-purple-500" />}
+            title="Bring Your Own Cloud"
+            description="Sync to any S3-compatible service, including Cloudflare R2, AWS S3, or your own MinIO server."
           />
           <FeatureCard 
-            icon={<Share2 className="text-green-500" />}
-            title="Enterprise Sharing"
-            description="Share specific vaults with family or team members with granular permissions."
+            icon={<Database className="text-green-500" />}
+            title="Local-First & Fast"
+            description="Works entirely offline. All notes are stored on your device for unmatched speed and privacy."
           />
         </div>
       </main>

@@ -1,33 +1,23 @@
-# Agent Handoff: md.app
+# AI Agent Instructions for md.app
 
-Welcome, agent. This is a local-first Markdown application built with Next.js and Capacitor, running on Cloudflare (D1, R2, Pages).
+This document provides high-level context for AI agents working on the `md.app` codebase.
 
-## 🧩 Architectural Overview
-- **Storage**: `src/lib/storage` handles abstraction between Capacitor Filesystem (Android/iOS) and LocalStorage (Web).
-- **Indexing**: `src/lib/indexer` handles note metadata and indexing. Refactored in v1.2.8 to use Capacitor `Preferences` for reliable cross-platform persistence.
-- **Sync**: `src/lib/sync` handles S3/R2 communication. v1.2.9 added `fullSyncFromCloud` for automatic data parity on login.
-- **API Architecture**: `src/lib/api.ts` centralizes environment-aware connectivity, ensuring absolute production URLs on native platforms and relative paths on the web.
-- **Database**: Cloudflare D1 handles users, sessions, vaults, audit logs, and shared note metadata.
-- **Functions**: `functions/api/` contains the backend Workers.
+## 🎯 Project Goal
 
-## 🔑 Important Files
-- `src/app/page.tsx`: Primary application entry point. Handles editor, rendering, and sync orchestration.
-- `src/lib/api.ts`: Shared utility for API communication.
-- `schema.sql`: Source of truth for D1 database.
-- `.github/workflows/security-scan.yml`: CI/CD security pipeline.
-- `src/lib/crypto.ts`: E2EE logic using Web Crypto API.
+The primary goal of `md.app` is to be a **private, self-hosted, Markdown-based alternative to Notion and Evernote**. It is designed for users who prioritize data ownership, privacy, and a fast, local-first experience.
 
-## 🛠️ Key Workflows
-1.  **Sync Orchestration**: `fullSyncFromCloud` (full parity) vs `syncToCloud` (per-note delta).
-2.  **Auth**: Bearer tokens with platform-aware routing (index.html on native, /landing on web).
-3.  **Sharing (Form A)**: Inbox-style document transfer.
-4.  **E2EE**: Per-vault encryption using AES-256-GCM. Keys are derived from passphrases and NEVER stored.
+## 🏛️ Core Architectural Pillars
 
-## 🚩 Guidelines for Next Agent
-- **Security**: Repo is monitored by Gitleaks, Semgrep, and Trivy. Ensure new code passes linting and typechecking.
-- **Platform Handling**: ALWAYS use `apiFetch` from `@/lib/api` for server communication.
-- **Mobile UI**: Maintain the "mobile-first" navigation (sidebar overlay and mobile header) in `page.tsx`.
-- **Markdown Rendering**: Interactive checklists use a custom `input` processor with `onMouseDown` for reliable toggling.
+1.  **Local-First**: The application must function perfectly offline. All data is stored on the user's device first using browser/native storage. The UI should be optimistic and feel instantaneous.
+2.  **Bring Your Own Cloud (BYOC)**: Users must be able to sync their data to their own S3-compatible object storage (Cloudflare R2, AWS S3, MinIO, etc.). The application should not rely on a centralized, proprietary database for user note content.
+3.  **End-to-End Encryption (E2EE)**: User data must be private. Vaults can be encrypted on the client-side with a user-provided passphrase. The server should never have access to the unencrypted content of an E2EE vault.
+4.  **Cross-Platform**: The application should provide a consistent experience across the web, Android, and iOS. This is achieved by using a web-native stack (Next.js) wrapped with Capacitor for mobile.
+5.  **Standard Formats**: All user content is stored as plain Markdown files (`.md`). This prevents data lock-in and allows users to easily access their notes outside of the app.
 
-## ⏭️ Immediate Next Task
-Implement **Form B Sharing (Live Share)**. This requires a presence engine to track active users on a note and handle real-time synchronization.
+## 🧑‍💻 Agent Directives
+
+-   **Prioritize Privacy and Security**: Never introduce code that could compromise user data or the E2EE model. When handling authentication or data, always err on the side of caution.
+-   **Maintain the Local-First Model**: Do not introduce features that require a constant internet connection. The app's core functionality must work offline.
+-   **Respect the BYOC Principle**: Do not build features that assume or require a centralized data store for note content. The user's S3 bucket is the source of truth. Metadata (like user accounts or vault memberships) is stored in a central D1 database, but the note content itself is not.
+-   **Adhere to Existing Patterns**: Follow the existing coding style, component structure, and state management patterns (`useState`, `useCallback`, `useMemo`). The main application logic is centralized in `src/app/page.tsx`. Backend API logic is in the `functions/` directory.
+-   **Keep it Simple**: The core appeal of the app is its simplicity and focus on the writing experience. Avoid adding unnecessary complexity or features that deviate from the core mission.

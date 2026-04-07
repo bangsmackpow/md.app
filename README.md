@@ -1,68 +1,41 @@
 # md.app
 
-A premium, local-first Markdown note-taking application built for mobile, web, and desktop. Designed for speed, data ownership, and professional-grade collaboration.
+**A Private, Self-Hosted, Markdown-based alternative to Notion & Evernote.**
 
-## ✨ Core Features
-
-### 🛡️ Governance & Security
-- **Admin Portal**: A dedicated dashboard for managing users, updating passwords, enabling/disabling 2FA, and managing storage quotas.
-- **End-to-End Encryption (E2EE)**: Per-vault client-side encryption using AES-256-GCM.
-- **Force Password Reset**: Admins can mandate security updates for any account.
-
-### 🤝 Advanced Sharing
-- **Vault Sharing**: Collaborate at the vault level with granular roles (Owner, Editor, Viewer).
-- **Document Sharing (Form A)**: Send specific notes directly to another user's "Shared with Me" inbox within the app.
-- **Revision History**: Track and restore previous versions of notes from the cloud.
-
-### ✍️ Professional Editor
-- **Linking & Backlinks**: Support for `[[Wiki-links]]` with an intelligent suggestion menu for linking notes and folders.
-- **Slash Commands**: Type `/` for formatting tools, `/template` to insert snippets, or `/link` to quickly link other notes.
-- **Interactive Checklists**: Toggle task items (`- [ ]`) directly in the **Reading View**—automatically updates the source file with reliable line-aware synchronization.
-- **Template System**: Configure custom templates in Settings to automate your recurring workflows.
-
-### 🚀 Performance & Sync
-- **Local-First Architecture**: Zero-latency access with background cloud sync.
-- **Automated Parity**: v1.2.9 introduced `fullSyncFromCloud` ensuring your entire vault is indexed and available immediately after login.
-- **Platform Optimized**: Native mobile builds feature optimized API connectivity and platform-aware storage (Capacitor Preferences) for maximum reliability.
-- **Responsive Navigation**: Full feature parity on mobile via a modern sidebar overlay and gesture-friendly interface.
-
-### 🛡️ Automated Security
-- **CI/CD Security Scanning**: Integrated GitHub Actions for Gitleaks (secrets), Semgrep (SAST), and Trivy (vulnerabilities).
-- **Hardened Codebase**: Strict typechecking and linting enforced on every push.
+md.app is a local-first, premium note-taking experience with end-to-end data ownership. It is designed for individuals, families, and teams who value privacy and control over their data. Sync effortlessly with your own S3-compatible storage, such as Cloudflare R2, AWS S3, or a self-hosted MinIO server.
 
 ---
 
-## ☁️ Cloud Sync Setup (S3/R2)
+### Core Features
 
-`md.app` works with any S3-compatible provider. We recommend **Cloudflare R2**.
+-   **📝 GFM Markdown Editor**: A beautiful and powerful editor for all your notes, with full support for GitHub Flavored Markdown, including interactive task lists.
+-   **🚀 Local-First Architecture**: Your data lives on your device first. The app is incredibly fast and works entirely offline.
+-   **☁️ Bring Your Own Cloud (BYOC)**: Sync your notes securely across devices using your own S3-compatible object storage. You control the data, not us.
+-   **🔐 End-to-End Encryption (E2EE)**: Enable vault-level E2EE to ensure that only you and your trusted members can read your notes. Data is encrypted at rest and in transit with keys only you hold.
+-   **📂 Folder Organization**: Organize your notes with a simple and intuitive folder structure.
+-   **📄 Customizable Templates**: Create and use templates for recurring note types like daily logs, meeting notes, or grocery lists.
+-   **🤝 Vault Sharing**: Share specific vaults with family, friends, or team members with role-based access control (owner, editor, viewer).
+-   **📱 Cross-Platform**: Available on the web and as native applications for Android and iOS.
+-   **🔑 Secure Authentication**: Sign in with traditional email and password or with your Google account via OAuth 2.0.
 
-### Configuration Format
-Import your credentials in the Settings menu using this JSON structure:
+### Tech Stack
 
-```json
-{
-  "endpoint": "https://<account-id>.r2.cloudflarestorage.com",
-  "accessKey": "id",
-  "secretKey": "secret",
-  "bucket": "notes"
-}
-```
+-   **Frontend**: Next.js & React with TailwindCSS
+-   **Mobile**: Capacitor to wrap the web app for native Android & iOS
+-   **Backend**: Cloudflare Workers for API endpoints
+-   **Database**: Cloudflare D1 for user and vault metadata
+-   **Storage**: Any S3-compatible object storage (e.g., Cloudflare R2, AWS S3, MinIO)
 
----
+### Getting Started
 
-## 💻 Technical Stack
+To get started with local development:
 
-| Layer | Technology |
-|-------|------------|
-| **Framework** | Next.js 16 (App Router) |
-| **Backend** | Cloudflare Pages Functions (Workers) |
-| **Database** | Cloudflare D1 (SQLite) |
-| **Storage** | Cloudflare R2 (S3 API) |
-| **Mobile** | Capacitor 8 (Android/iOS) |
-| **Editor** | CodeMirror 6 |
+1.  Clone the repository.
+2.  Install dependencies with `npm install`.
+3.  Set up your Cloudflare R2/D1 environment and obtain the necessary credentials.
+4.  Create a `.dev.vars` file in the root directory for local development with your Cloudflare environment variables.
+5.  Run the development server with `npm run dev`.
 
----
+### License
 
-## 📜 License
-Copyright © 2026 Built Networks. All rights reserved.
-MIT License.
+This project is proprietary and not available under an open-source license.
