@@ -1019,18 +1019,24 @@ export default function MdApp() {
   components={{ 
     li: ({node, children, ...props}) => {
       const isTask = (node as any)?.checked !== null && (node as any)?.checked !== undefined;
-      if (isTask) return <li className="flex items-start gap-2 list-none" style={{ marginLeft: '-1.5rem' }}>{children}</li>;
+      const line = (node as any)?.position?.start.line;
+      if (isTask) return <li data-line={line} className="flex items-start gap-2 list-none" style={{ marginLeft: '-1.5rem' }}>{children}</li>;
       return <li {...props}>{children}</li>;
     },
     input: ({node, ...props}) => {
       if (props.type === 'checkbox') {
-        const line = (node as any)?.position?.start.line;
         return (
           <input 
             type="checkbox"
             checked={props.checked}
             className="mt-1.5 w-4 h-4 rounded border-zinc-300 text-blue-600 cursor-pointer shrink-0" 
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (line) toggleCheckboxItem(line); }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const li = (e.target as HTMLElement).closest('li');
+              const line = li?.dataset.line;
+              if (line) toggleCheckboxItem(parseInt(line, 10));
+            }}
             readOnly
           />
         );
