@@ -209,6 +209,55 @@ export default function MdApp() {
     setNotes(result.sort((a, b) => b.lastModified - a.lastModified));
   }, [indexer]);
 
+  const syncToCloud = useCallback(async (name: string, body: string) => {
+    if (r2Config.accessKey && r2Config.endpoint) {
+      setSyncStatus("syncing");
+      try {
+        await sync.upload(name, body, r2Config);
+        setSyncStatus("success");
+        setTimeout(() => setSyncStatus("idle"), 3000);
+      } catch (err) { setSyncStatus("error"); }
+    }
+    if (authToken && activeVaultId) {
+      setSyncStatus("syncing");
+      try {
+        await fetch(`/api/notes/sync?vaultId=${activeVaultId}&fileName=${encodeURIComponent(name)}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: body
+        });
+        setSyncStatus("success");
+        setTimeout(() => setSyncStatus("idle"), 3000);
+      } catch (err) { setSyncStatus("error"); }
+    }
+  }, [r2Config, sync, authToken, activeVaultId]);
+
+  const saveNote = useCallback(async (overrideContent?: string) => {
+    if (!fileName || !activeVaultId || !authToken) return;
+    const plainContent = overrideContent !== undefined ? overrideContent : content;
+    let contentToSave = plainContent;
+    if (activeVault?.encryption_enabled && activeVaultKey) {
+      const encrypted = await encryptText(plainContent, activeVaultKey);
+      contentToSave = JSON.stringify(encrypted);
+    }
+    await storage.writeNote(fileName, contentToSave);
+    const h1Line = plainContent.split('\n').find(l => l.startsWith('# '));
+    const title = h1Line ? h1Line.replace('# ', '').trim() : fileName;
+    const tags = Array.from(plainContent.matchAll(/#(\w+)/g)).map(m => m[1]);
+    const snippet = plainContent.replace(/^# .*\n?/, '').substring(0, 100).trim();
+    await indexer.updateNote({ id: fileName, title, tags: [...new Set(tags)], lastModified: Date.now(), snippet, content: plainContent.substring(0, 10000) });
+    loadNotes();
+    setIsDirty(false);
+    await syncToCloud(fileName, contentToSave);
+    try {
+      await fetch(`/api/vaults/revisions?id=${activeVaultId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId: fileName, content: contentToSave })
+      });
+    } catch (e) {}
+  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, syncToCloud, activeVault, activeVaultKey]);
+
   const restoreTemplate = useCallback(async () => {
     if (!fileName.startsWith('templates/') || !activeVaultId || !authToken) return;
     if (!confirm("Restore this template to default?")) return;
@@ -468,55 +517,6 @@ export default function MdApp() {
       return () => clearInterval(interval);
     }
   }, [authToken, fetchInboundNotes]);
-
-  const syncToCloud = useCallback(async (name: string, body: string) => {
-    if (r2Config.accessKey && r2Config.endpoint) {
-      setSyncStatus("syncing");
-      try {
-        await sync.upload(name, body, r2Config);
-        setSyncStatus("success");
-        setTimeout(() => setSyncStatus("idle"), 3000);
-      } catch (err) { setSyncStatus("error"); }
-    }
-    if (authToken && activeVaultId) {
-      setSyncStatus("syncing");
-      try {
-        await fetch(`/api/notes/sync?vaultId=${activeVaultId}&fileName=${encodeURIComponent(name)}`, {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${authToken}` },
-          body: body
-        });
-        setSyncStatus("success");
-        setTimeout(() => setSyncStatus("idle"), 3000);
-      } catch (err) { setSyncStatus("error"); }
-    }
-  }, [r2Config, sync, authToken, activeVaultId]);
-
-  const saveNote = useCallback(async (overrideContent?: string) => {
-    if (!fileName || !activeVaultId || !authToken) return;
-    const plainContent = overrideContent !== undefined ? overrideContent : content;
-    let contentToSave = plainContent;
-    if (activeVault?.encryption_enabled && activeVaultKey) {
-      const encrypted = await encryptText(plainContent, activeVaultKey);
-      contentToSave = JSON.stringify(encrypted);
-    }
-    await storage.writeNote(fileName, contentToSave);
-    const h1Line = plainContent.split('\n').find(l => l.startsWith('# '));
-    const title = h1Line ? h1Line.replace('# ', '').trim() : fileName;
-    const tags = Array.from(plainContent.matchAll(/#(\w+)/g)).map(m => m[1]);
-    const snippet = plainContent.replace(/^# .*\n?/, '').substring(0, 100).trim();
-    await indexer.updateNote({ id: fileName, title, tags: [...new Set(tags)], lastModified: Date.now(), snippet, content: plainContent.substring(0, 10000) });
-    loadNotes();
-    setIsDirty(false);
-    await syncToCloud(fileName, contentToSave);
-    try {
-      await fetch(`/api/vaults/revisions?id=${activeVaultId}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ noteId: fileName, content: contentToSave })
-      });
-    } catch (e) {}
-  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, syncToCloud, activeVault, activeVaultKey]);
 
   useEffect(() => {
     if (!isDirty || !fileName) return;
