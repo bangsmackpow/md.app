@@ -35,7 +35,24 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   const url = new URL(request.url);
   const vaultId = url.searchParams.get("vaultId");
+  const fileName = url.searchParams.get("fileName");
+
   if (!vaultId) return Response.json({ error: "Missing vaultId" }, { status: 400 });
+
+  if (fileName) {
+    try {
+      const key = `${vaultId}/${fileName.endsWith('.md') ? fileName : fileName + '.md'}`;
+      const object = await env.NOTES_BUCKET.get(key);
+      if (!object) return new Response("Not Found", { status: 404 });
+      
+      const body = await object.text();
+      return new Response(body, {
+        headers: { "Content-Type": "text/markdown" }
+      });
+    } catch (e: any) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
 
   try {
     const list = await env.NOTES_BUCKET.list({ prefix: `${vaultId}/` });
