@@ -1156,7 +1156,7 @@ export default function MdApp() {
                         {revisions.map(rev => (
                           <div key={rev.id} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
                             <div>
-                              <p className="font-bold text-sm">{new Date(rev.created_at).toLocaleString()}</p>
+                              <p className="font-bold text-sm">{new Date(rev.created_at * 1000).toLocaleString()}</p>
                               <p className="text-xs text-zinc-500">by {rev.author} ({rev.hash})</p>
                             </div>
                             <button onClick={() => restoreRevision(rev.id)} className="px-4 py-1.5 bg-blue-500 text-white text-xs font-bold rounded-lg">Restore</button>
