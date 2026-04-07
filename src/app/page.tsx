@@ -950,7 +950,6 @@ export default function MdApp() {
                         </div>
                       ) : <div className="h-full w-full p-8 overflow-y-auto prose prose-zinc dark:prose-invert max-w-none shadow-inner"><ReactMarkdown 
   remarkPlugins={[remarkGfm]} 
-  sourcePos={true}
   components={{ 
     li: ({node, children, ...props}) => {
       const isTask = (node as any)?.checked !== null && (node as any)?.checked !== undefined;
