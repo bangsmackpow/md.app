@@ -44,6 +44,14 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   const url = new URL(request.url);
   const noteId = url.searchParams.get("noteId");
+  const revisionId = url.searchParams.get("revisionId");
+
+  if (revisionId) {
+    const revision = await env.DB.prepare("SELECT content FROM note_revisions WHERE id = ?").bind(revisionId).first();
+    if (!revision) return new Response("Revision not found", { status: 404 });
+    return Response.json(revision);
+  }
+
   if (!noteId) return Response.json({ error: "Note ID required" }, { status: 400 });
 
   const { results } = await env.DB.prepare(

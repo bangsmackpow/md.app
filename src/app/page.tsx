@@ -116,6 +116,39 @@ export default function MdApp() {
   const [revisions, setRevisions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
+  const fetchRevisions = async () => {
+    if (!fileName || !authToken) return;
+    try {
+      const res = await apiFetch(`/api/vaults/revisions?noteId=${encodeURIComponent(fileName)}`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRevisions(data);
+        setShowHistory(true);
+      }
+    } catch (e) {}
+  };
+
+  const restoreRevision = async (revisionId: string) => {
+    if (!confirm("Restore this version? This will overwrite the current content.")) return;
+    try {
+      const res = await apiFetch(`/api/vaults/revisions?revisionId=${revisionId}`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json() as any;
+        setContent(data.content);
+        saveNote(data.content);
+        setShowHistory(false);
+      } else {
+        alert("Failed to fetch revision content.");
+      }
+    } catch (e) {
+      alert("Error restoring revision.");
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth >= 768) {
       setIsSidebarOpen(true);
@@ -1005,6 +1038,7 @@ export default function MdApp() {
                   <header className="flex items-center justify-between px-2 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10">
                     <div className="flex items-center min-w-0"><button onClick={() => setView("list")} className="p-2 shrink-0"><ChevronLeft size={24} /></button><span className="min-w-0 bg-transparent font-bold text-sm px-1 truncate cursor-default">{fileName.split('/').pop()}</span></div>
                     <div className="flex gap-0.5 items-center shrink-0 pr-2">
+                      <button onClick={() => fetchRevisions()} className="p-2 text-zinc-400 hover:text-blue-500" title="Revision History"><History size={20} /></button>
                       {fileName.startsWith('templates/') && (
                         <button onClick={restoreTemplate} className="p-2 text-zinc-400 hover:text-emerald-500" title="Restore to Default"><RotateCcw size={20} /></button>
                       )}
@@ -1110,6 +1144,29 @@ export default function MdApp() {
               )}
             </div>
             <AnimatePresence>
+              {showHistory && (
+                <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
+                  <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[3rem] w-full max-w-md shadow-2xl">
+                    <div className="p-8">
+                      <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-bold">Revision History</h2>
+                        <button onClick={() => setShowHistory(false)} className="p-2"><X size={20} /></button>
+                      </div>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {revisions.map(rev => (
+                          <div key={rev.id} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
+                            <div>
+                              <p className="font-bold text-sm">{new Date(rev.created_at).toLocaleString()}</p>
+                              <p className="text-xs text-zinc-500">by {rev.author} ({rev.hash})</p>
+                            </div>
+                            <button onClick={() => restoreRevision(rev.id)} className="px-4 py-1.5 bg-blue-500 text-white text-xs font-bold rounded-lg">Restore</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
               {showUnlockModal && (
                 <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
                   <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[3rem] w-full max-w-sm shadow-2xl overflow-hidden">
