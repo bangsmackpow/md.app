@@ -37,9 +37,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const vaultId = url.searchParams.get("vaultId");
   const fileName = url.searchParams.get("fileName");
 
-  if (!vaultId) return Response.json({ error: "Missing vaultId" }, { status: 400 });
+  if (!vaultId && !url.pathname.includes('/_defaults/')) return Response.json({ error: "Missing vaultId" }, { status: 400 });
 
-  if (fileName) {
+  if (vaultId === '_defaults' && fileName) {
+    try {
+      const key = `_defaults/templates/${fileName.endsWith('.md') ? fileName : fileName + '.md'}`;
+      const object = await env.NOTES_BUCKET.get(key);
+      if (!object) return new Response("Default Template Not Found", { status: 404 });
+      const body = await object.text();
+      return new Response(body, { headers: { "Content-Type": "text/markdown" } });
+    } catch (e: any) { return Response.json({ error: e.message }, { status: 500 }); }
+  }
+
+  if (fileName && vaultId) {
     try {
       const key = `${vaultId}/${fileName.endsWith('.md') ? fileName : fileName + '.md'}`;
       const object = await env.NOTES_BUCKET.get(key);

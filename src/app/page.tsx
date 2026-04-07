@@ -9,7 +9,7 @@ import {
   FileText, Trash2, CheckSquare, Heading, 
   Type, Settings, Share, X, Cloud, CloudOff,
   List, ListOrdered, Minus, Code, Bold, Italic, Link as LinkIcon, Image as ImageIcon,
-  Folder, History, UserPlus, LogOut, Database, MoreVertical, Shield, Key, Layout, Lock
+  Folder, History, UserPlus, LogOut, Database, MoreVertical, Shield, Key, Layout, Lock, RotateCcw
 } from "lucide-react";
 
 // Storage & Indexing & Sync
@@ -178,6 +178,8 @@ export default function MdApp() {
         }
       }
     });
+    // Ensure templates folder is always in the list if it has notes or we want it there
+    if (!activeFolder) set.add('templates');
     return Array.from(set).sort();
   }, [notes, activeFolder]);
 
@@ -206,6 +208,25 @@ export default function MdApp() {
     const result = await indexer.getNotes();
     setNotes(result.sort((a, b) => b.lastModified - a.lastModified));
   }, [indexer]);
+
+  const restoreTemplate = useCallback(async () => {
+    if (!fileName.startsWith('templates/') || !activeVaultId || !authToken) return;
+    if (!confirm("Restore this template to default?")) return;
+    
+    const templateName = fileName.replace('templates/', '');
+    try {
+      const res = await fetch(`/api/notes/sync?vaultId=_defaults&fileName=${encodeURIComponent(templateName)}`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const defaultContent = await res.text();
+        setContent(defaultContent);
+        saveNote(defaultContent);
+      } else {
+        alert("Default version not found for this template.");
+      }
+    } catch (e) { alert("Error restoring template"); }
+  }, [fileName, activeVaultId, authToken, saveNote]);
 
   const apiFetchCallback = useCallback(async (path: string, options: any = {}) => {
     return apiFetch(path, options);
@@ -350,19 +371,36 @@ export default function MdApp() {
   }, [apiFetchCallback, fullSyncFromCloud]);
 
   const loadTemplates = useCallback(async () => {
-    const { value } = await Preferences.get({ key: 'templates' });
-    if (value) {
-      setTemplates(JSON.parse(value));
-    } else {
+    const templateNotes = notes.filter(n => n.id.startsWith('templates/'));
+    
+    if (templateNotes.length === 0 && activeVaultId) {
       const defaults = [
-        { id: 'daily', name: 'Daily Note', content: '# Daily Log: ' + new Date().toLocaleDateString() + '\n\n## Tasks\n- [ ] \n\n## Journal\n' },
-        { id: 'meeting', name: 'Meeting Notes', content: '# Meeting: \nDate: ' + new Date().toLocaleDateString() + '\nAttendees: \n\n## Agenda\n\n## Notes\n\n## Action Items\n- [ ] ' },
-        { id: 'grocery', name: 'Grocery List', content: '# Grocery List: ' + new Date().toLocaleDateString() + '\n\n## Produce\n- [ ] \n\n## Dairy & Eggs\n- [ ] \n\n## Meat & Seafood\n- [ ] \n\n## Pantry\n- [ ] \n\n## Household\n- [ ] ' }
+        { id: 'templates/daily', title: 'Daily Note', content: '# Daily Log: ' + new Date().toLocaleDateString() + '\n\n## Tasks\n- [ ] \n\n## Journal\n' },
+        { id: 'templates/meeting', title: 'Meeting Notes', content: '# Meeting: \nDate: ' + new Date().toLocaleDateString() + '\nAttendees: \n\n## Agenda\n\n## Notes\n\n## Action Items\n- [ ] ' },
+        { id: 'templates/grocery', title: 'Grocery List', content: '# Grocery List: ' + new Date().toLocaleDateString() + '\n\n## Produce\n- [ ] \n\n## Dairy & Eggs\n- [ ] \n\n## Meat & Seafood\n- [ ] \n\n## Pantry\n- [ ] \n\n## Household\n- [ ] ' }
       ];
-      setTemplates(defaults);
-      await Preferences.set({ key: 'templates', value: JSON.stringify(defaults) });
+      
+      for (const t of defaults) {
+        await storage.writeNote(t.id, t.content);
+        await indexer.updateNote({
+          id: t.id,
+          title: t.title,
+          tags: ['template'],
+          lastModified: Date.now(),
+          snippet: t.content.substring(0, 100),
+          content: t.content
+        });
+        await syncToCloud(t.id, t.content);
+      }
+      loadNotes();
     }
-  }, []);
+    
+    setTemplates(templateNotes.map(n => ({
+      id: n.id,
+      name: n.title,
+      content: n.content || ""
+    })));
+  }, [notes, activeVaultId, storage, indexer, syncToCloud, loadNotes]);
 
   const handleRegister = async () => {
     if (!userEmail || !userPassword) return;
@@ -869,8 +907,30 @@ export default function MdApp() {
               </div>
               <div className="flex-1 overflow-y-auto px-4 space-y-6">
                 <div className="space-y-1">
+                  {activeFolder && (
+                    <button 
+                      onClick={() => {
+                        const parts = activeFolder.split('/');
+                        parts.pop();
+                        setActiveFolder(parts.length > 0 ? parts.join('/') : null);
+                        setView("list");
+                      }} 
+                      className="w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all mb-2"
+                    >
+                      <ChevronLeft size={18} /> Back to {activeFolder.split('/').length > 1 ? activeFolder.split('/').slice(-2, -1) : 'Root'}
+                    </button>
+                  )}
                   <button onClick={() => { setActiveFolder(null); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${!activeFolder && view === "list" ? "bg-blue-500 text-white" : "text-zinc-500"}`}><Database size={18} /> All Notes</button>
-                  {folders.map(f => (<button key={f} onClick={() => { setActiveFolder(f); setView("list"); }} className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${activeFolder === f && view === "list" ? "bg-blue-500 text-white" : "text-zinc-500"}`}><Folder size={18} /> {f.split('/').pop()}</button>))}
+                  {folders.map(f => (
+                    <button 
+                      key={f} 
+                      onClick={() => { setActiveFolder(f); setView("list"); }} 
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl font-bold text-sm ${activeFolder === f && view === "list" ? "bg-blue-500 text-white" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                    >
+                      <Folder size={18} className={f === 'templates' ? 'text-emerald-500' : ''} /> 
+                      {f.split('/').pop()}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="p-6 border-t border-zinc-200 dark:border-zinc-800">
@@ -914,6 +974,9 @@ export default function MdApp() {
                   <header className="flex items-center justify-between px-2 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md z-10">
                     <div className="flex items-center min-w-0"><button onClick={() => setView("list")} className="p-2 shrink-0"><ChevronLeft size={24} /></button><span className="min-w-0 bg-transparent font-bold text-sm px-1 truncate cursor-default">{fileName.split('/').pop()}</span></div>
                     <div className="flex gap-0.5 items-center shrink-0 pr-2">
+                      {fileName.startsWith('templates/') && (
+                        <button onClick={restoreTemplate} className="p-2 text-zinc-400 hover:text-emerald-500" title="Restore to Default"><RotateCcw size={20} /></button>
+                      )}
                       <button onClick={() => setShowShareOptions(true)} className="p-2 text-zinc-400 hover:text-blue-500"><Share size={20} /></button>
                       <button onClick={() => saveNote()} className={`p-2 transition-colors ${isDirty ? "text-blue-600" : "text-zinc-300"}`}><Save size={20} /></button>
                       <button onClick={() => setEditMode(editMode === "edit" ? "preview" : "edit")} className={`ml-2 p-2 rounded-xl transition-all ${editMode === "preview" ? "bg-blue-500 text-white shadow-lg" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>{editMode === "edit" ? <Eye size={20} /> : <Edit3 size={20} />}</button>
