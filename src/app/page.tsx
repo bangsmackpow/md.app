@@ -565,6 +565,17 @@ export default function MdApp() {
   }, []);
 
   useEffect(() => {
+    setMounted(true);
+    loadAuth();
+    loadConfig();
+    if (typeof window !== "undefined") {
+      setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
+      (window as any).Buffer = Buffer;
+    }
+    App.addListener('appUrlOpen', async (data: any) => { console.log('App opened with URL:', data.url); });
+  }, [loadAuth, loadConfig]);
+
+  useEffect(() => {
     if (activeVaultId) {
       storage.setVault(activeVaultId);
       indexer.setVault(activeVaultId);
