@@ -564,34 +564,6 @@ export default function MdApp() {
     }
   }, []);
 
-  const checkForUpdates = useCallback(async () => {
-    try {
-      const release = await checkUpdates(versionData.version);
-      if (release) setUpdateInfo(release);
-    } catch (e) {}
-  }, []);
-
-  const [hasCheckedForUpdate, setHasCheckedForUpdate] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    loadAuth();
-    loadConfig();
-    if (!hasCheckedForUpdate) {
-      checkForUpdates();
-      setHasCheckedForUpdate(true);
-    }
-    if (typeof window !== "undefined") {
-      setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
-      (window as any).Buffer = Buffer;
-    }
-    App.addListener('appUrlOpen', async (data: any) => { console.log('App opened with URL:', data.url); });
-  }, [loadAuth, loadConfig, checkForUpdates]);
-
-  useEffect(() => {
-    if (mounted) {
-      loadTemplates();
-    }
   }, [notes, mounted]);
   
   useEffect(() => {
