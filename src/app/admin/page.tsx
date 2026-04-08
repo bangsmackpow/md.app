@@ -41,15 +41,15 @@ export default function AdminPortal() {
     storage_quota_mb: 500
   });
 
-  const handleGoBack = () => {
+  const handleGoBack = useCallback(() => {
     if (Capacitor.isNativePlatform()) {
       window.location.href = "index.html"; 
     } else {
       window.location.replace("/");
     }
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const { value: token } = await Preferences.get({ key: 'auth_token' });
       if (!token) {
@@ -73,11 +73,11 @@ export default function AdminPortal() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [handleGoBack]);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const handleEdit = (user: User) => {
     setEditingUser(user);

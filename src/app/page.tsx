@@ -253,7 +253,7 @@ export default function MdApp() {
         setTimeout(() => setSyncStatus("idle"), 3000);
       } catch (err) { setSyncStatus("error"); }
     }
-  }, [r2Config, sync, authToken, activeVaultId]);
+  }, [sync, authToken, activeVaultId, r2Config]);
 
   const saveNote = useCallback(async (overrideContent?: string) => {
     if (!fileName || !activeVaultId || !authToken) return;
@@ -279,7 +279,7 @@ export default function MdApp() {
         body: JSON.stringify({ noteId: fileName, content: contentToSave })
       });
     } catch (e) {}
-  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, r2Config, syncToCloud, activeVault, activeVaultKey]);
+  }, [fileName, content, activeVaultId, authToken, storage, indexer, loadNotes, syncToCloud, activeVault, activeVaultKey]);
 
   const restoreTemplate = useCallback(async () => {
     if (!fileName.startsWith('templates/') || !activeVaultId || !authToken) return;
@@ -352,7 +352,7 @@ export default function MdApp() {
     }
   }, [apiFetchCallback, storage, indexer, loadNotes]);
 
-  const migrateLegacyData = async (vaultId: string, token: string) => {
+  const migrateLegacyData = useCallback(async (vaultId: string, token: string) => {
     if (typeof window === 'undefined') return;
     const legacyIndexRaw = localStorage.getItem('md-app-index');
     if (!legacyIndexRaw) return;
@@ -391,7 +391,7 @@ export default function MdApp() {
       setIsMigrating(false);
       setSyncStatus("idle");
     }
-  };
+  }, [storage, indexer, loadNotes]);
 
   const loadAuth = useCallback(async () => {
     if (typeof window === 'undefined') return;
@@ -450,7 +450,7 @@ export default function MdApp() {
       } catch (e) { setView("list"); }
     } else { setView("auth"); }
     setIsAuthLoading(false);
-  }, [apiFetchCallback, fullSyncFromCloud]);
+  }, [apiFetchCallback, fullSyncFromCloud, migrateLegacyData]);
 
   const loadTemplates = useCallback(async () => {
     const templateNotes = notes.filter(n => n.id.startsWith('templates/'));
@@ -868,7 +868,7 @@ export default function MdApp() {
   };
 
   const handleGoogleLogin = () => {
-    const googleClientId = 'YOUR_GOOGLE_CLIENT_ID'; // Placeholder
+    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID';
     const redirectUri = window.location.origin + '/api/auth/google';
     const scope = 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
     const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
