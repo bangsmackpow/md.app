@@ -31,7 +31,6 @@ import { Browser } from '@capacitor/browser';
 import { App } from '@capacitor/app';
 
 // Update Service
-import { checkUpdates, GitHubRelease } from "@/lib/update";
 import versionData from "../../public/version.json";
 
 // Polyfills
