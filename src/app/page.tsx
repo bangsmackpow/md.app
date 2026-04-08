@@ -564,8 +564,6 @@ export default function MdApp() {
     }
   }, []);
 
-  }, [notes, mounted]);
-  
   useEffect(() => {
     if (activeVaultId) {
       storage.setVault(activeVaultId);
