@@ -55,10 +55,6 @@ CREATE TABLE IF NOT EXISTS vaults (
     owner_id TEXT NOT NULL,
     encryption_enabled INTEGER DEFAULT 0,
     encryption_salt TEXT,
-    r2_endpoint TEXT,
-    r2_access_key TEXT,
-    r2_secret_key TEXT,
-    r2_bucket TEXT,
     created_at INTEGER DEFAULT (strftime('%s', 'now')),
     FOREIGN KEY (owner_id) REFERENCES users(id)
 );

@@ -36,7 +36,7 @@ export default function LandingPage() {
             transition={{ delay: 0.1 }}
             className="text-xl text-zinc-500 dark:text-zinc-400 font-medium mb-12 max-w-xl"
           >
-            A local-first, premium note-taking experience with end-to-end data ownership. Sync effortlessly with your own S3 or Cloudflare R2 bucket.
+            A local-first, premium note-taking experience with end-to-end data ownership. Notes sync seamlessly across devices via platform-managed Cloudflare R2 storage.
           </motion.p>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -63,10 +63,10 @@ export default function LandingPage() {
             title="End-to-End Encrypted"
             description="Enable vault-level E2EE to ensure only you and your trusted members can read your notes."
           />
-          <FeatureCard 
+          <FeatureCard
             icon={<Globe className="text-purple-500" />}
-            title="Bring Your Own Cloud"
-            description="Sync to any S3-compatible service, including Cloudflare R2, AWS S3, or your own MinIO server."
+            title="Effortless Cloud Sync"
+            description="Your notes sync automatically across all your devices using secure, platform-managed Cloudflare R2 storage. No setup required."
           />
           <FeatureCard 
             icon={<Database className="text-green-500" />}

@@ -9,10 +9,11 @@ export class CapacitorStorageProvider implements StorageProvider {
     this.baseDir = `md-app/${vaultId}`;
   }
   
-  // On Android, use External Storage to survive app uninstallation.
-  // On iOS, Documents is the standard persistent location.
+  // Use Directory.Data for both Android and iOS — it points to the app's
+  // internal data directory, requires no permissions, and is safe across
+  // Android versions (including scoped storage on Android 11+).
   private getDirectory(): Directory {
-    return Capacitor.getPlatform() === 'android' ? Directory.External : Directory.Documents;
+    return Directory.Data;
   }
 
   async listNotes(): Promise<NoteFile[]> {

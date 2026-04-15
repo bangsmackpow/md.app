@@ -15,7 +15,7 @@ import {
 // Storage & Indexing & Sync
 import { getStorageProvider } from "@/lib/storage";
 import { getIndexProvider, NoteMetadata } from "@/lib/indexer";
-import { getSyncProvider, SyncStatus, SyncConfig } from "@/lib/sync";
+import { SyncStatus } from "@/lib/sync";
 
 // Editor
 import CodeMirror from '@uiw/react-codemirror';
@@ -65,10 +65,6 @@ const SLASH_COMMANDS: SlashCommand[] = [
 interface Vault {
   id: string;
   name: string;
-  r2_endpoint?: string;
-  r2_access_key?: string;
-  r2_secret_key?: string;
-  r2_bucket?: string;
   role: 'owner' | 'editor' | 'viewer';
   encryption_enabled?: number;
   encryption_salt?: string;
@@ -178,21 +174,8 @@ export default function MdApp() {
 
   const activeVault = useMemo(() => vaults.find(v => v.id === activeVaultId), [vaults, activeVaultId]);
 
-  const r2Config = useMemo(() => {
-    if (activeVault && activeVault.r2_endpoint) {
-      return {
-        endpoint: activeVault.r2_endpoint,
-        accessKey: activeVault.r2_access_key || "",
-        secretKey: activeVault.r2_secret_key || "",
-        bucket: activeVault.r2_bucket || ""
-      };
-    }
-    return { endpoint: "", accessKey: "", secretKey: "", bucket: "" };
-  }, [activeVault]);
-
   const storage = useMemo(() => getStorageProvider(), []);
   const indexer = useMemo(() => getIndexProvider(), []);
-  const sync = useMemo(() => getSyncProvider(), []);
 
   const folders = useMemo(() => {
     const topLevel = new Set<string>();
@@ -233,27 +216,18 @@ export default function MdApp() {
   }, [indexer]);
 
   const syncToCloud = useCallback(async (name: string, body: string) => {
-    if (r2Config.accessKey && r2Config.endpoint) {
-      setSyncStatus("syncing");
-      try {
-        await sync.upload(name, body, r2Config);
-        setSyncStatus("success");
-        setTimeout(() => setSyncStatus("idle"), 3000);
-      } catch (err) { setSyncStatus("error"); }
-    }
-    if (authToken && activeVaultId) {
-      setSyncStatus("syncing");
-      try {
-        await fetch(`/api/notes/sync?vaultId=${activeVaultId}&fileName=${encodeURIComponent(name)}`, {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${authToken}` },
-          body: body
-        });
-        setSyncStatus("success");
-        setTimeout(() => setSyncStatus("idle"), 3000);
-      } catch (err) { setSyncStatus("error"); }
-    }
-  }, [sync, authToken, activeVaultId, r2Config]);
+    if (!authToken || !activeVaultId) return;
+    setSyncStatus("syncing");
+    try {
+      await fetch(`/api/notes/sync?vaultId=${activeVaultId}&fileName=${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: body
+      });
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    } catch (err) { setSyncStatus("error"); }
+  }, [authToken, activeVaultId]);
 
   const saveNote = useCallback(async (overrideContent?: string) => {
     if (!fileName || !activeVaultId || !authToken) return;
@@ -557,23 +531,15 @@ export default function MdApp() {
     return () => clearTimeout(timer);
   }, [content, isDirty, fileName, saveNote]);
 
-  const loadConfig = useCallback(async () => {
-    const { value } = await Preferences.get({ key: 'r2_config' });
-    if (value) {
-      // Logic to handle R2 config if needed locally beyond vault state
-    }
-  }, []);
-
   useEffect(() => {
     setMounted(true);
     loadAuth();
-    loadConfig();
     if (typeof window !== "undefined") {
       setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
       (window as any).Buffer = Buffer;
     }
     App.addListener('appUrlOpen', async (data: any) => { console.log('App opened with URL:', data.url); });
-  }, [loadAuth, loadConfig]);
+  }, [loadAuth]);
 
   useEffect(() => {
     if (activeVaultId) {

@@ -37,12 +37,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   if (!session) return Response.json({ error: "Invalid session" }, { status: 401 });
 
-  const { name, r2_endpoint, r2_access_key, r2_secret_key, r2_bucket, encryption_enabled, encryption_salt } = await request.json() as any;
+  const { name, encryption_enabled, encryption_salt } = await request.json() as any;
   const vaultId = crypto.randomUUID();
 
   try {
-    await env.DB.prepare("INSERT INTO vaults (id, name, owner_id, r2_endpoint, r2_access_key, r2_secret_key, r2_bucket, encryption_enabled, encryption_salt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(vaultId, name || "New Vault", session.user_id, r2_endpoint, r2_access_key, r2_secret_key, r2_bucket, encryption_enabled ? 1 : 0, encryption_salt || null).run();
+    await env.DB.prepare("INSERT INTO vaults (id, name, owner_id, encryption_enabled, encryption_salt) VALUES (?, ?, ?, ?, ?)")
+      .bind(vaultId, name || "New Vault", session.user_id, encryption_enabled ? 1 : 0, encryption_salt || null).run();
 
     await env.DB.prepare("INSERT INTO vault_members (vault_id, user_id, role) VALUES (?, ?, ?)")
       .bind(vaultId, session.user_id, "owner").run();
@@ -76,11 +76,11 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
     return Response.json({ error: "Only owners can edit vault settings" }, { status: 403 });
   }
 
-  const { name, r2_endpoint, r2_access_key, r2_secret_key, r2_bucket, encryption_enabled, encryption_salt } = await request.json() as any;
+  const { name, encryption_enabled, encryption_salt } = await request.json() as any;
 
   try {
-    await env.DB.prepare("UPDATE vaults SET name = ?, r2_endpoint = ?, r2_access_key = ?, r2_secret_key = ?, r2_bucket = ?, encryption_enabled = ?, encryption_salt = ? WHERE id = ?")
-      .bind(name, r2_endpoint, r2_access_key, r2_secret_key, r2_bucket, encryption_enabled ? 1 : 0, encryption_salt || null, vaultId).run();
+    await env.DB.prepare("UPDATE vaults SET name = ?, encryption_enabled = ?, encryption_salt = ? WHERE id = ?")
+      .bind(name, encryption_enabled ? 1 : 0, encryption_salt || null, vaultId).run();
 
     return Response.json({ success: true });
   } catch (e: any) {
