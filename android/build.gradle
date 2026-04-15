@@ -3,6 +3,7 @@
 apply from: "variables.gradle"
 
 buildscript {
+    ext.kotlinVersion = '2.0.20'
 
     repositories {
         google()
