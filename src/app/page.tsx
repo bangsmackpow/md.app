@@ -413,7 +413,7 @@ export default function MdApp() {
           if (data.length > 0) {
             setActiveVaultId(data[0].id);
             migrateLegacyData(data[0].id, value);
-            fullSyncFromCloud(data[0].id, value);
+            await fullSyncFromCloud(data[0].id, value);
           }
           setView("list");
         } else {
@@ -862,8 +862,13 @@ export default function MdApp() {
             <div className="max-w-sm mx-auto w-full space-y-12">
               <div className="text-center space-y-2">
                 <h1 className="text-5xl font-black tracking-tighter italic">md.app</h1>
-                <p className="text-zinc-500 text-sm font-bold uppercase tracking-[0.3em]">{authMode === "login" ? "Sign In" : "Create Account"}</p>
+                {isAuthLoading ? (
+                  <p className="text-zinc-400 text-sm font-bold uppercase tracking-[0.3em] animate-pulse">Loading your vaults...</p>
+                ) : (
+                  <p className="text-zinc-500 text-sm font-bold uppercase tracking-[0.3em]">{authMode === "login" ? "Sign In" : "Create Account"}</p>
+                )}
               </div>
+              {!isAuthLoading && (
               <div className="space-y-4">
                 <button onClick={handleGoogleLogin} className="w-full py-4 bg-blue-600 text-white font-bold rounded-3xl flex items-center justify-center gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="20" height="20" viewBox="0 0 48 48">
@@ -883,6 +888,7 @@ export default function MdApp() {
                   {authMode === "login" ? "Sign In" : "Get Started"}
                 </button>
               </div>
+              )}
             </div>
           </motion.div>
         ) : (
@@ -1059,7 +1065,10 @@ export default function MdApp() {
                 </motion.div>
               ) : (
                 <motion.div key="settings" className="flex-1 flex flex-col p-8 space-y-8 overflow-y-auto max-w-2xl mx-auto w-full">
-                  <header><h1 className="text-3xl font-black tracking-tight italic">Settings</h1></header>
+                  <header className="flex items-center gap-4">
+                    <button onClick={() => { setView("list"); setFileName(""); setContent(""); }} className="p-2 -ml-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"><ChevronLeft size={20} /></button>
+                    <h1 className="text-3xl font-black tracking-tight italic">Settings</h1>
+                  </header>
                   <section className="space-y-6">
                     <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                       <div className="flex items-center justify-between">
